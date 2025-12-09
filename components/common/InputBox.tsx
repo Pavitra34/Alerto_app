@@ -32,6 +32,7 @@ interface InputBoxProps extends TextInputProps {
   borderColor?: string;
   errorMessage?: string;
   forceBlueBorder?: boolean; // NEW PROP
+  containerStyle?: any; // Style for the container View
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -63,6 +64,7 @@ const InputBox = forwardRef<TextInput, InputBoxProps>(
       errorMessage,
       inputStyle,
       forceBlueBorder = false, // default false
+      containerStyle,
       ...rest
     },
     ref
@@ -81,7 +83,7 @@ const InputBox = forwardRef<TextInput, InputBoxProps>(
           onPress={onPress}
           disabled={!onPress}
         >
-          <View style={[styles.container, { borderColor: currentBorderColor }]}>
+          <View style={[styles.container, { borderColor: currentBorderColor }, containerStyle]}>
             {label ? (
               <Text style={styles.label}>{label}</Text>
             ) : null}

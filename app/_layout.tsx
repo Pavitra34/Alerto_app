@@ -28,6 +28,10 @@ export default function RootLayout() {
         <Stack.Screen name="employee" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="history" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="profile" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="helpcenter" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="about" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="termsofservice" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="privacypolicy" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

@@ -16,7 +16,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: "2",
-    fullname: "Jane Smith",
+    fullname: "Suthakaran Pavitra",
     phonenumber: 9876543211,
     role: "employee",
   },

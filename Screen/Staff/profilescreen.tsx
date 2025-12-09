@@ -16,6 +16,8 @@ import { findUserByEmail, findUserByUsername } from '../../api/auth';
 import Header from '../../components/common/Header';
 import CartBox from '../../components/common/CartBox';
 import { Button1 } from '../../components/common/Button';
+import Popup from '../../components/common/Popup';
+import Toast, { showSuccessToast, toastConfig } from '../../components/common/Toast';
 import Footer from '../Footer';
 import colors from '../../styles/Colors';
 // @ts-ignore
@@ -29,6 +31,10 @@ export default function ProfileScreen() {
   const [userId, setUserId] = useState<string>('');
   const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
+  const [showLogoutPopup, setShowLogoutPopup] = useState<boolean>(false);
+  const [showAvatarPopup, setShowAvatarPopup] = useState<boolean>(false);
+  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
+  const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
 
   const languages = [
     {
@@ -77,6 +83,13 @@ export default function ProfileScreen() {
         const storedLangId = await AsyncStorage.getItem('langId') || 'en';
         const langId = storedLangId === 'de' ? 'deutsch' : 'english';
         setSelectedLanguage(langId);
+
+        // Load selected avatar
+        const storedAvatar = await AsyncStorage.getItem('selectedAvatar');
+        if (storedAvatar) {
+          setCurrentAvatar(storedAvatar);
+          console.log('Loaded avatar from storage:', storedAvatar);
+        }
       } catch (error) {
         console.error('Error loading profile data:', error);
       }
@@ -85,8 +98,22 @@ export default function ProfileScreen() {
     loadUserData();
   }, []);
 
-  const handleBack = () => {
-    router.back();
+  const handleBack = async () => {
+    try {
+      // Get langId and userId from AsyncStorage to pass as params
+      const langId = await AsyncStorage.getItem('langId') || 'en';
+      const userId = await AsyncStorage.getItem('userId') || '';
+      
+      // Navigate to employee/home screen with params
+      router.replace({
+        pathname: '/employee' as any,
+        params: { langId, userId }
+      } as any);
+    } catch (error) {
+      console.error('Error navigating to employee screen:', error);
+      // Fallback navigation
+      router.replace('/employee' as any);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -101,6 +128,14 @@ export default function ProfileScreen() {
     console.log(`${menuItem} pressed`);
     if (menuItem === 'Language') {
       setShowLanguageModal(true);
+    } else if (menuItem === 'Help center') {
+      router.push('/helpcenter');
+    } else if (menuItem === 'About us') {
+      router.push('/about');
+    } else if (menuItem === 'Terms of Service') {
+      router.push('/termsofservice');
+    } else if (menuItem === 'Privacy policy') {
+      router.push('/privacypolicy');
     }
     // Add navigation logic here for other menu items
   };
@@ -126,8 +161,71 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    console.log('Logout pressed');
-    // Add logout logic here
+    setShowLogoutPopup(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    try {
+      // Get languageId before clearing storage
+      const langId = await AsyncStorage.getItem('langId') || 'en';
+      console.log('Logout - LanguageId to be passed:', langId);
+      
+      // Get current values before clearing
+      const currentUserId = await AsyncStorage.getItem('userId');
+      const currentToken = await AsyncStorage.getItem('authToken');
+      console.log('Logout - Current userId:', currentUserId);
+      console.log('Logout - Current token:', currentToken);
+      
+      // Clear userId and token, but keep languageId
+      await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('authToken');
+      await AsyncStorage.removeItem('userObj');
+      console.log('Logout - Cleared userId, authToken, and userObj');
+      console.log('Logout - LanguageId preserved:', langId);
+      
+      // Navigate to login screen with languageId as parameter
+      const navigationParams = {
+        pathname: '/login' as any,
+        params: { langId: langId }
+      };
+      console.log('Logout - Navigating to login with params:', navigationParams);
+      router.replace(navigationParams as any);
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Still navigate even if clearing storage fails
+      router.replace('/login');
+    }
+  };
+
+  const handleCancelLogout = () => {
+    setShowLogoutPopup(false);
+  };
+
+  const handleAvatarSelect = (avatarType: string) => {
+    setSelectedAvatar(avatarType);
+    console.log('Avatar selected:', avatarType);
+  };
+
+  const handleSaveAvatar = async () => {
+    try {
+      if (selectedAvatar) {
+        // Save selected avatar to AsyncStorage
+        await AsyncStorage.setItem('selectedAvatar', selectedAvatar);
+        setCurrentAvatar(selectedAvatar);
+        console.log('Avatar saved:', selectedAvatar);
+        setShowAvatarPopup(false);
+        setSelectedAvatar(null);
+        // Show success toast
+        showSuccessToast('Avatar added successfully');
+      }
+    } catch (error) {
+      console.error('Error saving avatar:', error);
+    }
+  };
+
+  const handleCloseAvatarPopup = () => {
+    setShowAvatarPopup(false);
+    setSelectedAvatar(null);
   };
 
   return (
@@ -152,9 +250,27 @@ export default function ProfileScreen() {
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials(fullname)}</Text>
+              {currentAvatar ? (
+                <Image 
+                  source={currentAvatar === 'boy' 
+                    ? require('../../assets/images/boy.png')
+                    : require('../../assets/images/girl.png')} 
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.avatarText}>{getInitials(fullname)}</Text>
+              )}
             </View>
-            <TouchableOpacity style={styles.editIcon}>
+            <TouchableOpacity 
+              style={styles.editIcon}
+              onPress={() => {
+                // Set current avatar as selected when opening modal
+                if (currentAvatar) {
+                  setSelectedAvatar(currentAvatar);
+                }
+                setShowAvatarPopup(true);
+              }}>
               <View style={styles.editIconCircle}>
                 <Image 
                   source={require('../../assets/icons/edit.png')} 
@@ -388,7 +504,10 @@ export default function ProfileScreen() {
                   <View style={styles.languageTextContainer}>
                     <Text style={[
                       styles.languageName,
-                      selectedLanguage === lang.id && styles.languageNameSelected,
+                      selectedLanguage === lang.id &&
+                      {
+                        color: colors.text,
+                      }
                     ]}>
                       {lang.name}
                     </Text>
@@ -416,6 +535,102 @@ export default function ProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Logout Confirmation Popup */}
+      <Popup
+        visible={showLogoutPopup}
+        onClose={handleCancelLogout}
+        title="Confirm Logout"
+        titleStyle={styles.popupTitle}
+        popupStyle={styles.popupBox}
+        dismissOnOverlayPress={false}>
+        <Text style={styles.popupMessage}>
+          Are you sure want to logout?
+        </Text>
+        
+        <View style={styles.popupButtons}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleCancelLogout}
+            activeOpacity={0.7}>
+            <Text style={styles.cancelButtonText}>No</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.confirmLogoutButton}
+            onPress={handleConfirmLogout}
+            activeOpacity={0.7}>
+            <Text style={styles.confirmLogoutButtonText}>Yes</Text>
+          </TouchableOpacity>
+        </View>
+      </Popup>
+
+      {/* Avatar Selection Modal */}
+      <Modal
+        visible={showAvatarPopup}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCloseAvatarPopup}>
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={handleCloseAvatarPopup}>
+          <Pressable style={styles.avatarModalContent} onPress={(e) => e.stopPropagation()}>
+            {/* Drag Handle */}
+            <View style={styles.dragHandle} />
+            
+            {/* Title */}
+            <Text style={styles.modalTitle}>Select Profile Avatar</Text>
+            
+            {/* Description */}
+            <Text style={styles.avatarModalMessage}>
+              Select one of the available avatar images for your profile.
+            </Text>
+            
+            {/* Avatar Options */}
+            <View style={styles.avatarOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.avatarOption,
+                  selectedAvatar === 'boy' && styles.avatarOptionSelected
+                ]}
+                onPress={() => handleAvatarSelect('boy')}
+                activeOpacity={0.7}>
+                <Image 
+                  source={require('../../assets/images/boy.png')} 
+                  style={styles.avatarOptionImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.avatarOption,
+                  selectedAvatar === 'girl' && styles.avatarOptionSelected
+                ]}
+                onPress={() => handleAvatarSelect('girl')}
+                activeOpacity={0.7}>
+                <Image 
+                  source={require('../../assets/images/girl.png')} 
+                  style={styles.avatarOptionImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Save Button */}
+            <Button1
+              text="Save"
+              width="100%"
+              onPress={handleSaveAvatar}
+              backgroundColor={colors.primary}
+              height={39}
+              containerStyle={styles.saveAvatarButton}
+              textStyle={styles.saveAvatarButtonText}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+      <Toast config={toastConfig} />
     </View>
   );
 }
@@ -445,6 +660,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#9CA3AF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: 32,
@@ -544,7 +764,7 @@ const styles = StyleSheet.create({
     tintColor: '#EF4444',
   },
   menuText: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: fonts.family.medium,
     fontWeight: fonts.weight.medium,
     color: colors.text,
@@ -558,7 +778,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -569,6 +789,24 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     paddingHorizontal: 20,
     maxHeight: '70%',
+  },
+  avatarModalContent: {
+    backgroundColor: colors.secondary,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    maxHeight: '70%',
+  },
+  avatarModalMessage: {
+    fontSize: 14,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.text,
+    textAlign: 'left',
+    marginBottom: 24,
+    lineHeight: 20,
   },
   dragHandle: {
     width: 40,
@@ -625,10 +863,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     
   },
-  languageNameSelected: {
-    fontFamily: fonts.family.bold,
-    fontWeight: fonts.weight.bold,
-  },
+
   languageSubtitle: {
     fontSize: 12,
     fontFamily: fonts.family.regular,
@@ -644,6 +879,94 @@ const styles = StyleSheet.create({
   selectButtonText: {
     color: colors.secondary,
     fontSize: 16,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
+  },
+  popupBox: {
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+   
+  },
+  popupTitle: {
+    fontSize: fonts.size.l,
+    fontFamily: fonts.family.bold,
+    fontWeight: fonts.weight.bold,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  popupMessage: {
+    fontSize: 14,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  popupButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
+    color: '#6B7280',
+  },
+  confirmLogoutButton: {
+    flex: 1,
+    backgroundColor:"#FF6600",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmLogoutButtonText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
+    color: colors.secondary,
+  },
+  avatarOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 24,
+    gap: 20,
+  },
+  avatarOption: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarOptionSelected: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  avatarOptionImage: {
+    width: '100%',
+    height: '100%',
+  },
+  saveAvatarButton: {
+    borderRadius: 12,
+  },
+  saveAvatarButtonText: {
+    color: colors.secondary,
+    fontSize: fonts.size.m,
     fontFamily: fonts.family.medium,
     fontWeight: fonts.weight.medium,
   },
