@@ -60,7 +60,7 @@ const ContactCard = ({
       backgroundColor="#F1F2F4"
       paddingVertical={10}
       paddingHorizontal={12}
-      marginBottom={20}
+      marginBottom={12}
       height={58}
     >
       <View style={styles.cardContent}>

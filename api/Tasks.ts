@@ -8,22 +8,15 @@ export interface Task {
   updatedat: string; // ISO date
 }
 
-// Dummy Task Data (3 tasks)
+// Dummy Task Data (2 tasks)
 // threat_ids link to threats from Threat.ts (ids: "threat001", "threat002", "threat003")
-// user_ids link to employees from Employee_active.ts (user_ids: "2", "3", "5")
+// user_ids link to employees from Employee_active.ts (user_ids: "3", "5")
+// Note: user_id "2" has no tasks assigned
 export const dummyTasks: Task[] = [
-  {
-    _id: "task001",
-    threat_id: "threat001", // Intruder threat from cam001
-    user_id: "2", // Suthakaran Pavitra
-    review_status: false,
-    createdat: "2024-12-20T10:35:00.000Z",
-    updatedat: "2024-12-20T10:35:00.000Z",
-  },
   {
     _id: "task002",
     threat_id: "threat002", // Motion threat from cam002
-    user_id: "3", // Michael Johnson
+    user_id: "2", // Michael Johnson
     review_status: true,
     createdat: "2024-12-20T11:20:00.000Z",
     updatedat: "2024-12-20T12:00:00.000Z",
@@ -31,7 +24,7 @@ export const dummyTasks: Task[] = [
   {
     _id: "task003",
     threat_id: "threat003", // Fire threat from cam003
-    user_id: "5", // David Brown
+    user_id: "2", // David Brown
     review_status: false,
     createdat: "2024-12-20T13:50:00.000Z",
     updatedat: "2024-12-20T13:50:00.000Z",

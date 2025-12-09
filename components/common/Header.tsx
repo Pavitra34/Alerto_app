@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   text: {
-    fontSize: fonts.size.xl, // 20
+    fontSize: 16, // 20
     fontFamily: fonts.family.medium,
     color: colors.text,
     maxWidth: DEFAULT_TEXT_MAX_WIDTH,
