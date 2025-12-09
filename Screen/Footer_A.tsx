@@ -188,8 +188,8 @@ const styles = StyleSheet.create({
     height: 50,
   },
   navIcon: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
   },
 });
 
