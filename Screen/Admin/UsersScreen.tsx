@@ -1,42 +1,36 @@
 import React from 'react';
 import {
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
-  View
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import Header from '../../components/common/Header';
-import colors from '../../styles/Colors';
 import Footer_A from '../Footer_A';
+import colors from '../../styles/Colors';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
 
-export default function AdminScreen() {
+export default function UsersScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Header
         center={{
           type: 'text',
-          value: 'Alerto',
-        }}
-        right={{
-          type: 'image',
-          url: require('../../assets/icons/notification.png'),
-          width: 24,
-          height: 24,
+          value: 'Users',
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
-
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Admin Features</Text>
+          <Text style={styles.sectionTitle}>User Management</Text>
           <Text style={styles.sectionText}>
-            This is the Admin Screen. You can add admin-specific features here.
+            This is the Users Screen for admin users. Manage all system users here.
           </Text>
         </View>
       </ScrollView>
       <Footer_A />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -44,28 +38,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
   },
   content: {
     padding: 20,
     paddingBottom: 100,
-  },
-  header: {
-    marginBottom: 30,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: fonts.size.xxl,
-    fontFamily: fonts.family.bold,
-    fontWeight: fonts.weight.bold,
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: fonts.size.l,
-    fontFamily: fonts.family.regular,
-    fontWeight: fonts.weight.regular,
-    color: colors.subtext3,
   },
   section: {
     backgroundColor: colors.background,
