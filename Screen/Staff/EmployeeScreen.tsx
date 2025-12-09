@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,12 +12,14 @@ import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import Popup from '../../components/common/Popup';
+import Toast, { showSuccessToast, toastConfig } from '../../components/common/Toast';
 import Footer from '../Footer';
 import colors from '../../styles/Colors';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
 
 export default function EmployeeScreen() {
+  const params = useLocalSearchParams();
   const [userName, setUserName] = useState<string>('Employee');
   const [isActive, setIsActive] = useState<boolean>(false);
   const [currentDate, setCurrentDate] = useState<string>('');
@@ -24,6 +27,11 @@ export default function EmployeeScreen() {
   const [showConfirmInactivePopup, setShowConfirmInactivePopup] = useState<boolean>(false);
 
   useEffect(() => {
+    // Check if we should show login success toast
+    if (params.showLoginSuccess === 'true') {
+      showSuccessToast('Login successful!');
+    }
+
     // Get user data from AsyncStorage
     const loadUserData = async () => {
       try {
@@ -48,7 +56,7 @@ export default function EmployeeScreen() {
     setCurrentDate(date.toLocaleDateString('en-US', options));
 
     loadUserData();
-  }, []);
+  }, [params]);
 
   const handleGoActive = () => {
     if (isActive) {
@@ -209,6 +217,7 @@ export default function EmployeeScreen() {
           </TouchableOpacity>
         </View>
       </Popup>
+      <Toast config={toastConfig} />
     </View>
   );
 }

@@ -19,6 +19,7 @@ import { validateLogin } from '../api/auth';
 import { findUserById } from '../api/users';
 import { Button1 } from '../components/common/Button';
 import InputBox from '../components/common/InputBox';
+import Toast, { showErrorToast, toastConfig } from '../components/common/Toast';
 import colors from '@/styles/Colors';
 import fonts from '@/styles/Fonts';
 
@@ -107,7 +108,7 @@ export default function LoginScreen() {
         const userDetails = findUserById(authUser.id);
 
         if (!userDetails) {
-          Alert.alert('Error', 'User details not found');
+          showErrorToast('User details not found');
           return;
         }
 
@@ -124,39 +125,51 @@ export default function LoginScreen() {
           await AsyncStorage.setItem('userObj', JSON.stringify(fullUser));
         } catch (storageError) {
           console.error('Error saving to storage:', storageError);
-          Alert.alert('Error', 'Failed to save user data');
+          showErrorToast('Failed to save user data');
           return;
         }
 
-        // Show success message and navigate based on role
+        // Navigate based on user role (toast will show in EmployeeScreen)
         const role = userDetails.role;
-        Alert.alert('Success', 'Login successful!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate based on user role
-              if (role === 'admin') {
-                router.replace('/admin' as any);
-              } else if (role === 'employee') {
-                router.replace('/employee' as any);
-              } else {
-                // Default fallback
-                router.replace('/(tabs)' as any);
-              }
-            },
-          },
-        ]);
+        
+        // Get langId and userId for navigation params
+        const langId = await AsyncStorage.getItem('langId') || 'en';
+        const userId = authUser.id;
+        
+        // Navigate based on user role
+        if (role === 'admin') {
+          router.replace({
+            pathname: '/admin',
+            params: { 
+              showLoginSuccess: 'true',
+              langId: langId,
+              userId: userId
+            }
+          });
+        } else if (role === 'employee') {
+          router.replace({
+            pathname: '/employee',
+            params: { 
+              showLoginSuccess: 'true',
+              langId: langId,
+              userId: userId
+            }
+          });
+        } else {
+          // Default fallback
+          router.replace('/(tabs)');
+        }
       } else {
         // Invalid credentials
         Keyboard.dismiss();
         setEmailOrUsername('');
         setPassword('');
-        Alert.alert('Login Failed', 'Invalid email/username or password');
-        emailRef.current?.focus();
+        showErrorToast('Invalid credential');
+        // Don't focus email field - keep keyboard dismissed
       }
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'Login failed. Please try again.');
+      showErrorToast('Login failed. Please try again.');
     }
   };
 
@@ -221,7 +234,9 @@ export default function LoginScreen() {
             <Button1 text="Login" width={'90%'} onPress={handleSignIn} />
           </View>
         </View>
+        <Toast config={toastConfig} />
       </KeyboardAvoidingView>
+     
     </TouchableWithoutFeedback>
   );
 }
