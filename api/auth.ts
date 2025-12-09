@@ -11,7 +11,7 @@ export const dummyUsers: AuthUser[] = [
   {
     id: "1",
     username: "danu",
-    email: "john.doe@example.com",
+    email: "danu@gmail.com",
     password: "pass@123",
   },
   {
