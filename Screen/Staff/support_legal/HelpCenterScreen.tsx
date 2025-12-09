@@ -187,7 +187,7 @@ export default function HelpCenterScreen() {
           />
 
           <Button1
-            text="Submit"
+            text="Send"
             width="100%"
             onPress={handleSubmit}
             backgroundColor={colors.primary}

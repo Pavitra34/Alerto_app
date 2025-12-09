@@ -10,7 +10,7 @@ export interface User {
 export const dummyUsers: User[] = [
   {
     id: "1",
-    fullname: "John Doe",
+    fullname: "Kish Danu",
     phonenumber: 9876543210,
     role: "admin",
   },

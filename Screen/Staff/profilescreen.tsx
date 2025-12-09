@@ -540,12 +540,12 @@ export default function ProfileScreen() {
       <Popup
         visible={showLogoutPopup}
         onClose={handleCancelLogout}
-        title="Confirm Logout"
+        title="Logout?"
         titleStyle={styles.popupTitle}
         popupStyle={styles.popupBox}
         dismissOnOverlayPress={false}>
         <Text style={styles.popupMessage}>
-          Are you sure want to logout?
+        Confirm the logging out by clicking “yes”.
         </Text>
         
         <View style={styles.popupButtons}>
@@ -885,18 +885,19 @@ const styles = StyleSheet.create({
   popupBox: {
     paddingVertical: 24,
     paddingHorizontal: 20,
+    borderColor:"#FF3B30",
    
   },
   popupTitle: {
-    fontSize: fonts.size.l,
-    fontFamily: fonts.family.bold,
-    fontWeight: fonts.weight.bold,
-    color: colors.text,
+    fontSize: 14,
+    fontFamily: "400",
+    fontWeight: "400",
+    color: "#FF3B30",
     textAlign: 'center',
     marginBottom: 16,
   },
   popupMessage: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
     color: colors.text,
@@ -925,7 +926,7 @@ const styles = StyleSheet.create({
   },
   confirmLogoutButton: {
     flex: 1,
-    backgroundColor:"#FF6600",
+    backgroundColor:colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
