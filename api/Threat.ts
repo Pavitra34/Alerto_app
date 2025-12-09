@@ -7,25 +7,32 @@ export interface Threat {
   updatedat: string; // ISO date
 }
 
-// Dummy Threat Data (3 threats)
+// Dummy Threat Data (4 threats)
 // camera_ids link to cameras from Camera.ts (ids: "cam001", "cam002", "cam003")
 export const dummyThreats: Threat[] = [
   {
     _id: "threat001",
     camera_id: "cam001", // Main Entrance Camera
-    threat_type: "intruder",
+    threat_type: "No payment made",
+    createdat: "2024-01-15T14:12:45.000Z",
+    updatedat: "2024-01-15T14:12:45.000Z",
+  },
+  {
+    _id: "threat002",
+    camera_id: "cam002", // Main Entrance Camera
+    threat_type: "Intruder",
     createdat: "2024-12-20T10:30:00.000Z",
     updatedat: "2024-12-20T10:35:00.000Z",
   },
   {
-    _id: "threat002",
+    _id: "threat003",
     camera_id: "cam002", // Parking Lot Camera
-    threat_type: "motion",
+    threat_type: "Motion",
     createdat: "2024-12-20T11:15:00.000Z",
     updatedat: "2024-12-20T11:20:00.000Z",
   },
   {
-    _id: "threat003",
+    _id: "threat004",
     camera_id: "cam003", // Warehouse Security Camera
     threat_type: "fire",
     createdat: "2024-12-20T13:45:00.000Z",

@@ -12,7 +12,7 @@ export interface EmployeeActive {
 export const dummyEmployeeActive: EmployeeActive[] = [
   {
     _id: "emp_active001",
-    user_id: "2", // Suthakaran Pavitra
+    user_id: "3", // Suthakaran Pavitra
     active_status: true,
     createdat: "2024-12-20T08:00:00.000Z",
     updatedat: "2024-12-20T14:30:00.000Z",
