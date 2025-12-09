@@ -202,8 +202,14 @@ export default function ProfileScreen() {
   };
 
   const handleAvatarSelect = (avatarType: string) => {
-    setSelectedAvatar(avatarType);
-    console.log('Avatar selected:', avatarType);
+    // Toggle: if same avatar is clicked, unselect it
+    if (selectedAvatar === avatarType) {
+      setSelectedAvatar(null);
+      console.log('Avatar unselected:', avatarType);
+    } else {
+      setSelectedAvatar(avatarType);
+      console.log('Avatar selected:', avatarType);
+    }
   };
 
   const handleSaveAvatar = async () => {
@@ -217,6 +223,15 @@ export default function ProfileScreen() {
         setSelectedAvatar(null);
         // Show success toast
         showSuccessToast('Avatar added successfully');
+      } else {
+        // If no avatar selected (unselected), remove from storage
+        await AsyncStorage.removeItem('selectedAvatar');
+        setCurrentAvatar(null);
+        console.log('Avatar removed');
+        setShowAvatarPopup(false);
+        setSelectedAvatar(null);
+        // Show success toast
+        showSuccessToast('Avatar removed successfully');
       }
     } catch (error) {
       console.error('Error saving avatar:', error);

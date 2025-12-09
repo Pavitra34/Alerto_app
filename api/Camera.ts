@@ -14,7 +14,7 @@ export const dummyCameras: Camera[] = [
   {
     _id: "cam001",
     name: "Main Entrance Camera",
-    location: "Building A - Main Entrance",
+    location: "Building A",
     camera_status: true,
     camera_view: "https://youtu.be/aKOd6fwNRqQ",
     createdat: "2024-01-15T08:30:00.000Z",
