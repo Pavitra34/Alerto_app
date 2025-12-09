@@ -22,6 +22,9 @@ export default function RootLayout() {
         <Stack.Screen name="language" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
+        <Stack.Screen name="camera" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="alerts" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="users" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="employee" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="history" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="profile" options={{ headerShown: false, animation: 'none' }} />
