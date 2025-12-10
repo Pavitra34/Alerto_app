@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Camera, findCameraById } from '../../api/Camera';
 import { EmployeeActive, getActiveEmployees } from '../../api/Employee_active';
-import { Task, dummyTasks } from '../../api/Tasks';
+import { Task, dummyTasks, findTasksByThreatId } from '../../api/Tasks';
 import { Threat, dummyThreats, getUnassignedThreats } from '../../api/Threat';
 import { User, findUserById } from '../../api/users';
 import { Button1 } from '../../components/common/Button';
@@ -27,10 +27,20 @@ type TabType = 'unreviewed' | 'assigned' | 'reviewed';
 interface AlertCardProps {
   threat: Threat;
   camera: Camera | undefined;
+  activeTab: TabType;
+  assignedEmployees?: Array<{ user: User | undefined }>;
   onAssignPress: (threat: Threat) => void;
+  onReassignPress: (threat: Threat) => void;
 }
 
-const AlertCard: React.FC<AlertCardProps> = ({ threat, camera, onAssignPress }) => {
+const AlertCard: React.FC<AlertCardProps> = ({
+  threat,
+  camera,
+  activeTab,
+  assignedEmployees,
+  onAssignPress,
+  onReassignPress,
+}) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
@@ -48,7 +58,7 @@ const AlertCard: React.FC<AlertCardProps> = ({ threat, camera, onAssignPress }) 
   const getThreatLevelColor = (level: string): string => {
     switch (level) {
       case 'High':
-        return '#FF3B30';
+        return '#FF0000';
       case 'Medium':
         return '#FF9500';
       case 'Low':
@@ -68,7 +78,7 @@ const AlertCard: React.FC<AlertCardProps> = ({ threat, camera, onAssignPress }) 
       borderRadius={12}
       borderWidth={0}
       backgroundColor={colors.background}
-      paddingTop={0}
+      paddingTop={12}
       paddingBottom={12}
       paddingRight={12}
       paddingLeft={12}
@@ -91,7 +101,14 @@ const AlertCard: React.FC<AlertCardProps> = ({ threat, camera, onAssignPress }) 
           />
           <Text style={styles.locationText}>{camera?.location || 'Unknown Location'}</Text>
         </View>
+        <View style={styles.locationSection}>
+        <Image
+            source={require('../../assets/icons/clock_g.png')}
+            style={styles.locationIcon}
+            resizeMode="contain"
+          />
          <Text style={styles.timestamp}>{formatDate(threat.createdat)}</Text>
+         </View>
       </View>
 
       {/* Video Thumbnail Section */}
@@ -121,25 +138,51 @@ const AlertCard: React.FC<AlertCardProps> = ({ threat, camera, onAssignPress }) 
 
         {/* Badges Overlay */}
         <View style={styles.badgesContainer}>
-          <View style={styles.unassignedBadge}>
-            <Text style={styles.badgeText}>Unreviewed</Text>
-          </View>
+          {threat.threat_status ? (
+            <View style={styles.assignedBadge}>
+              <Text style={styles.badgeText}>Assigned</Text>
+            </View>
+          ) : (
+            <View style={styles.unassignedBadge}>
+              <Text style={styles.badgeText}>Unreviewed</Text>
+            </View>
+          )}
           <View style={[styles.levelBadge, { backgroundColor: getThreatLevelColor(threat.threat_level) }]}>
             <Text style={styles.levelBadgeText}>{threat.threat_level}</Text>
           </View>
         </View>
       </View>
 
-      {/* Assign Button */}
-      <View style={styles.assignButtonContainer}>
+      {/* Assigned Staff Section - Only show for assigned threats */}
+      {threat.threat_status && assignedEmployees && assignedEmployees.length > 0 && (
+        <View style={styles.assignedStaffSection}>
+          <Text style={styles.assignedStaffText}>
+            Assigned staff: {assignedEmployees.map((emp) => emp.user?.fullname).filter(Boolean).join(', ')}
+          </Text>
+        </View>
+      )}
+
+      {/* Assign/Reassign Button */}
+      {threat.threat_status ? (
+        <Button1
+          text="Reassign"
+          onPress={() => onReassignPress(threat)}
+          backgroundColor={colors.secondary}
+          textStyle={styles.assignButtontext}
+          width="100%"
+          containerStyle={styles.assignButton}
+        />
+      ) : (
         <Button1
           text="Assign"
           onPress={() => onAssignPress(threat)}
-          backgroundColor={colors.primary}
+          backgroundColor={colors.secondary}
+          textStyle={styles.assignButtontext}
           width="100%"
-          height={40}
+          containerStyle={styles.assignButton}
         />
-      </View>
+      )}
+
     </CartBox>
   );
 };
@@ -148,23 +191,46 @@ interface AssignModalProps {
   visible: boolean;
   threat: Threat | null;
   activeEmployees: Array<EmployeeActive & { user: User | undefined }>;
+  preSelectedUserIds?: string[];
   onClose: () => void;
-  onAssign: (threatId: string, userId: string) => void;
+  onAssign: (threatId: string, userIds: string[]) => void;
 }
 
 const AssignModal: React.FC<AssignModalProps> = ({
   visible,
   threat,
   activeEmployees,
+  preSelectedUserIds = [],
   onClose,
   onAssign,
 }) => {
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(preSelectedUserIds);
+
+  // Update selectedUserIds when preSelectedUserIds changes (when modal opens with different threat)
+  useEffect(() => {
+    if (visible) {
+      setSelectedUserIds(preSelectedUserIds);
+    } else {
+      setSelectedUserIds([]);
+    }
+  }, [visible, preSelectedUserIds]);
+
+  const toggleEmployeeSelection = (userId: string) => {
+    setSelectedUserIds((prevSelected) => {
+      if (prevSelected.includes(userId)) {
+        // Unselect if already selected
+        return prevSelected.filter((id) => id !== userId);
+      } else {
+        // Select if not already selected
+        return [...prevSelected, userId];
+      }
+    });
+  };
 
   const handleAssign = () => {
-    if (threat && selectedUserId) {
-      onAssign(threat._id, selectedUserId);
-      setSelectedUserId(null);
+    if (threat && selectedUserIds.length > 0) {
+      onAssign(threat._id, selectedUserIds);
+      setSelectedUserIds([]);
       onClose();
     }
   };
@@ -196,9 +262,9 @@ const AssignModal: React.FC<AssignModalProps> = ({
                 key={emp._id}
                 style={[
                   styles.employeeRow,
-                  selectedUserId === emp.user_id && styles.employeeRowSelected,
+                  selectedUserIds.includes(emp.user_id) && styles.employeeRowSelected,
                 ]}
-                onPress={() => setSelectedUserId(emp.user_id)}>
+                onPress={() => toggleEmployeeSelection(emp.user_id)}>
                 <Text style={styles.employeeName}>{emp.user?.fullname || 'Unknown'}</Text>
                 <View style={[
                   styles.statusBadge,
@@ -218,7 +284,7 @@ const AssignModal: React.FC<AssignModalProps> = ({
             onPress={handleAssign}
             backgroundColor={colors.primary}
             width="100%"
-            height={50}
+            height={39}
             containerStyle={styles.modalAssignButton}
           />
         </TouchableOpacity>
@@ -231,6 +297,7 @@ export default function AlertScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('unreviewed');
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Get active employees with user details
   const activeEmployeesWithUsers = useMemo(() => {
@@ -256,24 +323,38 @@ export default function AlertScreen() {
       default:
         return [];
     }
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   const handleAssignPress = (threat: Threat) => {
     setSelectedThreat(threat);
     setAssignModalVisible(true);
   };
 
-  const handleAssign = (threatId: string, userId: string) => {
+  const handleAssign = (threatId: string, userIds: string[]) => {
     // In a real app, this would be an API call
-    // For now, we'll simulate creating a Task and updating threat status
-    const newTask: Task = {
-      _id: `task${Date.now()}`,
-      threat_id: threatId,
-      user_id: userId,
-      review_status: false,
-      createdat: new Date().toISOString(),
-      updatedat: new Date().toISOString(),
-    };
+    // For reassignment: Remove old tasks and create new ones
+    const existingTasks = dummyTasks.filter((task) => task.threat_id === threatId);
+    existingTasks.forEach((task) => {
+      const index = dummyTasks.findIndex((t) => t._id === task._id);
+      if (index !== -1) {
+        dummyTasks.splice(index, 1);
+      }
+    });
+
+    // Create new tasks for selected users
+    userIds.forEach((userId) => {
+      const newTask: Task = {
+        _id: `task${Date.now()}_${userId}`,
+        threat_id: threatId,
+        user_id: userId,
+        review_status: false,
+        createdat: new Date().toISOString(),
+        updatedat: new Date().toISOString(),
+      };
+
+      // Add task to dummyTasks (in real app, this would be an API call)
+      dummyTasks.push(newTask);
+    });
 
     // Update threat status (in real app, this would be an API call)
     const threat = dummyThreats.find((t) => t._id === threatId);
@@ -282,12 +363,20 @@ export default function AlertScreen() {
       threat.updatedat = new Date().toISOString();
     }
 
-    // Add task to dummyTasks (in real app, this would be an API call)
-    dummyTasks.push(newTask);
-
     // Refresh the view by updating state
+    setRefreshKey((prev) => prev + 1);
     setAssignModalVisible(false);
     setSelectedThreat(null);
+  };
+
+  const handleReassignPress = (threat: Threat) => {
+    // Get currently assigned employees for this threat
+    const assignedTasks = findTasksByThreatId(threat._id);
+    const assignedUserIds = assignedTasks.map((task) => task.user_id);
+    
+    setSelectedThreat(threat);
+    setAssignModalVisible(true);
+    // Pre-select will be handled by the modal's useEffect
   };
 
   return (
@@ -362,12 +451,22 @@ export default function AlertScreen() {
         ) : (
           filteredThreats.map((threat) => {
             const camera = findCameraById(threat.camera_id);
+            // Get assigned employees for this threat
+            const assignedTasks = findTasksByThreatId(threat._id);
+            const assignedEmployees = assignedTasks.map((task) => {
+              const user = findUserById(task.user_id);
+              return { user };
+            });
+            
             return (
               <AlertCard
                 key={threat._id}
                 threat={threat}
                 camera={camera}
+                activeTab={activeTab}
+                assignedEmployees={assignedEmployees}
                 onAssignPress={handleAssignPress}
+                onReassignPress={handleReassignPress}
               />
             );
           })
@@ -381,6 +480,11 @@ export default function AlertScreen() {
         visible={assignModalVisible}
         threat={selectedThreat}
         activeEmployees={activeEmployeesWithUsers}
+        preSelectedUserIds={
+          selectedThreat
+            ? findTasksByThreatId(selectedThreat._id).map((task) => task.user_id)
+            : []
+        }
         onClose={() => {
           setAssignModalVisible(false);
           setSelectedThreat(null);
@@ -402,6 +506,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     justifyContent: 'space-between',
     marginTop: 20,
+    marginBottom:20,
   },
   tabButton: {
     flex: 1,
@@ -424,7 +529,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 100,
   },
   emptyContainer: {
@@ -442,38 +547,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingBottom: 12,
-    marginTop: 12,
+    marginBottom: 6,
   },
   cardHeaderLeft: {
     flex: 1,
   },
   threatType: {
-    fontSize: fonts.size.l,
-    fontFamily: fonts.family.medium,
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   cameraName: {
     fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
-    color: colors.subtext2,
-  },
-  timestamp: {
-    fontSize: fonts.size.s,
-    fontFamily: fonts.family.regular,
-    fontWeight: fonts.weight.regular,
-    color: colors.subtext2,
-    marginLeft: 8,
+    color: colors.text,
   },
   thumbnailContainer: {
     width: '100%',
     height: 180,
     position: 'relative',
     backgroundColor: '#000000',
-    marginBottom: 12,
+    marginBottom: 10,
+    borderRadius:10
   },
   thumbnail: {
     width: '100%',
@@ -495,35 +593,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000000',
+    borderRadius:10
   },
   badgesContainer: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    right: 8,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent:"space-between",
+    position: 'absolute',
+    paddingVertical:13,
+    paddingHorizontal:15,
+    width:"100%"
   },
   unassignedBadge: {
-    backgroundColor: '#FF3B30',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    backgroundColor: colors.live_badge,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  assignedBadge: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   badgeText: {
-    fontSize: 10,
-    fontFamily: fonts.family.medium,
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
     color: colors.secondary,
   },
   levelBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   levelBadgeText: {
-    fontSize: 10,
-    fontFamily: fonts.family.medium,
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
     color: colors.secondary,
   },
@@ -534,36 +639,67 @@ const styles = StyleSheet.create({
   locationSection1: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal:12
+    justifyContent:"space-between",
+    marginBottom:10,
+    width:"100%",
+  },
+    timestamp: {
+    fontSize: fonts.size.s,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.subtext,
   },
   locationIcon: {
     width: 14,
     height: 14,
-    marginRight: 6,
+    marginRight: 4,
   },
   locationText: {
     fontSize: fonts.size.s,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
-    color: colors.subtext2,
-    flex: 1,
+    color: colors.subtext,
   },
-  assignButtonContainer: {
-    paddingHorizontal: 16,
+  assignButton:{  
+    width:"100%",
+    borderWidth:2,
+    borderColor:colors.primary
+  },
+  assignButtontext: {
+    color: colors.primary,
+    paddingVertical: 10,
+  },
+  assignedStaffSection: {
+    width:"100%",
+    padding: 8,
+    marginBottom: 12,
+    backgroundColor: colors.assigned_staff,
+    borderRadius: 10,
+  },
+  assignedStaffText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.secondary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: colors.secondary,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 30,
+    paddingTop: 20,
+    paddingBottom: 50,
     maxHeight: '80%',
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   modalHeader: {
     alignItems: 'center',
@@ -571,15 +707,15 @@ const styles = StyleSheet.create({
   },
   modalHeaderLine: {
     width: 40,
-    height: 4,
+    height: 6,
     backgroundColor: colors.modal_line,
-    borderRadius: 2,
-    marginBottom: 12,
+    borderRadius: 10,
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: fonts.size.xl,
-    fontFamily: fonts.family.medium,
-    fontWeight: fonts.weight.medium,
+    fontSize: fonts.size.l,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.semibold,
     color: colors.text,
   },
   employeeList: {
@@ -590,13 +726,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderWidth:1,
+    borderRadius:12,
+    backgroundColor:colors.secondary,
+    borderColor:colors.border,
+    marginBottom:12,
+    height:41,
   },
   employeeRowSelected: {
-    backgroundColor: colors.button_background,
+    borderWidth:2,
+    borderColor:colors.popupBorderColor,
   },
   employeeName: {
     fontSize: fonts.size.m,
@@ -605,21 +746,24 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 5,
+    paddingVertical: 5.5 ,
+    borderRadius: 10,
+    minHeight:23,
+    minWidth:42,
+    alignItems:"center"
   },
   statusBadgeActive: {
-    backgroundColor: colors.status_early_bg,
+    backgroundColor: colors.status_active,
   },
   statusBadgeInactive: {
-    backgroundColor: colors.status_late_bg,
+    backgroundColor: colors.live_badge,
   },
   statusBadgeText: {
-    fontSize: fonts.size.s,
-    fontFamily: fonts.family.medium,
+    fontSize: fonts.size.xs,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
-    color: colors.status_early,
+    color: colors.secondary,
   },
   modalAssignButton: {
     marginTop: 10,

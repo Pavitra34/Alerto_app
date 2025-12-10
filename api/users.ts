@@ -34,7 +34,7 @@ export const dummyUsers: User[] = [
   },
   {
     id: "5",
-    fullname: "David Brown",
+    fullname: "Danu Krish",
     phonenumber: 9876543214,
     role: "employee",
   },

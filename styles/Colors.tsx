@@ -28,11 +28,12 @@ const colors = {
   dateboxborder:"#2196F3",
   border1:"#DEE2E6",
   status_early:"#4CAF50",
-  status_early_bg:"#4CAF501A",
+  status_active:"#0DBEA0",
   status_late:"#F59300",
   status_late_bg:"#F593001A",
   progressBarBackground:"#E8E8E8",
   live_badge: "#FF0000",
+  assigned_staff:"#F76800"
 };
 
 export default colors;

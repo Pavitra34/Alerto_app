@@ -15,16 +15,24 @@ export interface Task {
 export const dummyTasks: Task[] = [
   {
     _id: "task002",
-    threat_id: "threat002", // Motion threat from cam002
-    user_id: "2", // Michael Johnson
+    threat_id: "threat001",
+    user_id: "2",
     review_status: true,
     createdat: "2024-12-20T11:20:00.000Z",
     updatedat: "2024-12-20T12:00:00.000Z",
   },
   {
     _id: "task003",
-    threat_id: "threat003", // Fire threat from cam003
-    user_id: "2", // David Brown
+    threat_id: "threat003",
+    user_id: "5",
+    review_status: false,
+    createdat: "2024-12-20T13:50:00.000Z",
+    updatedat: "2024-12-20T13:50:00.000Z",
+  },
+  {
+    _id: "task004",
+    threat_id: "threat005",
+    user_id: "5",
     review_status: false,
     createdat: "2024-12-20T13:50:00.000Z",
     updatedat: "2024-12-20T13:50:00.000Z",
