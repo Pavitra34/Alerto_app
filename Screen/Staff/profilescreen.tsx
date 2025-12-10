@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import { findUserById } from '../../api/users';
 import { findUserByEmail, findUserByUsername } from '../../api/auth';
@@ -22,6 +23,7 @@ import Footer from '../Footer';
 import colors from '../../styles/Colors';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
+import { getTranslations } from '../../assets/Translation';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -35,6 +37,9 @@ export default function ProfileScreen() {
   const [showAvatarPopup, setShowAvatarPopup] = useState<boolean>(false);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [langId, setLangId] = useState<string>('en');
+  const [t, setT] = useState(getTranslations('en'));
 
   const languages = [
     {
@@ -51,52 +56,70 @@ export default function ProfileScreen() {
     },
   ];
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const storedUserId = await AsyncStorage.getItem('userId') || '';
-        setUserId(storedUserId);
+  const loadUserData = async () => {
+    try {
+      const storedUserId = await AsyncStorage.getItem('userId') || '';
+      setUserId(storedUserId);
 
-        if (storedUserId) {
-          const user = findUserById(storedUserId);
-          if (user) {
-            setFullname(user.fullname);
-            setPhoneNumber(user.phonenumber.toString());
-          }
+      if (storedUserId) {
+        const user = findUserById(storedUserId);
+        if (user) {
+          setFullname(user.fullname);
+          setPhoneNumber(user.phonenumber.toString());
         }
-
-        const userObjString = await AsyncStorage.getItem('userObj');
-        if (userObjString) {
-          const userObj = JSON.parse(userObjString);
-          if (userObj.email) {
-            const authUser = findUserByEmail(userObj.email) || findUserByUsername(userObj.email);
-            if (authUser) {
-              setEmail(authUser.email);
-            }
-          }
-          if (userObj.fullname) {
-            setFullname(userObj.fullname);
-          }
-        }
-
-        // Load selected language
-        const storedLangId = await AsyncStorage.getItem('langId') || 'en';
-        const langId = storedLangId === 'de' ? 'deutsch' : 'english';
-        setSelectedLanguage(langId);
-
-        // Load selected avatar
-        const storedAvatar = await AsyncStorage.getItem('selectedAvatar');
-        if (storedAvatar) {
-          setCurrentAvatar(storedAvatar);
-          console.log('Loaded avatar from storage:', storedAvatar);
-        }
-      } catch (error) {
-        console.error('Error loading profile data:', error);
       }
-    };
 
+      const userObjString = await AsyncStorage.getItem('userObj');
+      if (userObjString) {
+        const userObj = JSON.parse(userObjString);
+        if (userObj.email) {
+          const authUser = findUserByEmail(userObj.email) || findUserByUsername(userObj.email);
+          if (authUser) {
+            setEmail(authUser.email);
+          }
+        }
+        if (userObj.fullname) {
+          setFullname(userObj.fullname);
+        }
+      }
+
+      // Load selected language
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      const langId = storedLangId === 'de' ? 'deutsch' : 'english';
+      setSelectedLanguage(langId);
+      setLangId(storedLangId);
+      setT(getTranslations(storedLangId));
+
+      // Load selected avatar
+      const storedAvatar = await AsyncStorage.getItem('selectedAvatar');
+      if (storedAvatar) {
+        setCurrentAvatar(storedAvatar);
+        console.log('Loaded avatar from storage:', storedAvatar);
+      }
+    } catch (error) {
+      console.error('Error loading profile data:', error);
+    }
+  };
+
+  useEffect(() => {
     loadUserData();
   }, []);
+
+  // Update translations when langId changes
+  useEffect(() => {
+    setT(getTranslations(langId));
+  }, [langId]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadUserData();
+    } catch (error) {
+      console.error('Error refreshing profile data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleBack = async () => {
     try {
@@ -124,17 +147,18 @@ export default function ProfileScreen() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const handleMenuPress = (menuItem: string) => {
-    console.log(`${menuItem} pressed`);
-    if (menuItem === 'Language') {
+  const handleMenuPress = (menuItemId: string) => {
+    console.log(`${menuItemId} pressed`);
+    // Use IDs for comparison
+    if (menuItemId === 'language') {
       setShowLanguageModal(true);
-    } else if (menuItem === 'Help center') {
+    } else if (menuItemId === 'helpCenter') {
       router.push('/helpcenter');
-    } else if (menuItem === 'About us') {
+    } else if (menuItemId === 'aboutUs') {
       router.push('/about');
-    } else if (menuItem === 'Terms of Service') {
+    } else if (menuItemId === 'termsOfService') {
       router.push('/termsofservice');
-    } else if (menuItem === 'Privacy policy') {
+    } else if (menuItemId === 'privacyPolicy') {
       router.push('/privacypolicy');
     }
     // Add navigation logic here for other menu items
@@ -222,7 +246,7 @@ export default function ProfileScreen() {
         setShowAvatarPopup(false);
         setSelectedAvatar(null);
         // Show success toast
-        showSuccessToast('Avatar added successfully');
+        showSuccessToast(t.avatarAddedSuccessfully);
       } else {
         // If no avatar selected (unselected), remove from storage
         await AsyncStorage.removeItem('selectedAvatar');
@@ -231,7 +255,7 @@ export default function ProfileScreen() {
         setShowAvatarPopup(false);
         setSelectedAvatar(null);
         // Show success toast
-        showSuccessToast('Avatar removed successfully');
+        showSuccessToast(t.avatarRemovedSuccessfully);
       }
     } catch (error) {
       console.error('Error saving avatar:', error);
@@ -256,11 +280,22 @@ export default function ProfileScreen() {
         }}
         center={{
           type: 'text',
-          value: 'Profile',
+          value: t.profile,
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
@@ -316,7 +351,7 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Fullname</Text>
+                <Text style={styles.infoLabel}>{t.fullname}</Text>
                 <Text style={styles.infoValue}>{fullname}</Text>
               </View>
             </View>
@@ -339,7 +374,7 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoLabel}>{t.email}</Text>
                 <Text style={styles.infoValue}>{email}</Text>
               </View>
             </View>
@@ -362,7 +397,7 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Phone number</Text>
+                <Text style={styles.infoLabel}>{t.phoneNumber}</Text>
                 <Text style={styles.infoValue}>{phoneNumber}</Text>
               </View>
             </View>
@@ -376,14 +411,14 @@ export default function ProfileScreen() {
             borderColor={colors.border}
             height={41}
             marginBottom={12}
-            onPress={() => handleMenuPress('Language')}>
+            onPress={() => handleMenuPress('language')}>
             <View style={styles.menuRow}>
               <Image 
                 source={require('../../assets/icons/lang.png')} 
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Language</Text>
+              <Text style={styles.menuText}>{t.language}</Text>
             </View>
           </CartBox>
 
@@ -395,14 +430,14 @@ export default function ProfileScreen() {
             borderColor={colors.border}
             height={41}
             marginBottom={12}
-            onPress={() => handleMenuPress('Help center')}>
+            onPress={() => handleMenuPress('helpCenter')}>
             <View style={styles.menuRow}>
               <Image 
                 source={require('../../assets/icons/hc.png')} 
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Help center</Text>
+              <Text style={styles.menuText}>{t.helpCenter}</Text>
             </View>
           </CartBox>
 
@@ -414,14 +449,14 @@ export default function ProfileScreen() {
             borderColor={colors.border}
             height={41}
             marginBottom={12}
-            onPress={() => handleMenuPress('About us')}>
+            onPress={() => handleMenuPress('aboutUs')}>
             <View style={styles.menuRow}>
               <Image 
                 source={require('../../assets/icons/au.png')} 
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>About us</Text>
+              <Text style={styles.menuText}>{t.aboutUs}</Text>
             </View>
           </CartBox>
 
@@ -433,14 +468,14 @@ export default function ProfileScreen() {
             borderColor={colors.border}
             height={41}
             marginBottom={12}
-            onPress={() => handleMenuPress('Privacy policy')}>
+            onPress={() => handleMenuPress('privacyPolicy')}>
             <View style={styles.menuRow}>
               <Image 
                 source={require('../../assets/icons/pp.png')} 
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Privacy policy</Text>
+              <Text style={styles.menuText}>{t.privacyPolicy}</Text>
             </View>
           </CartBox>
 
@@ -452,14 +487,14 @@ export default function ProfileScreen() {
             borderColor={colors.border}
             height={41}
             marginBottom={12}
-            onPress={() => handleMenuPress('Terms of Service')}>
+            onPress={() => handleMenuPress('termsOfService')}>
             <View style={styles.menuRow}>
               <Image 
                 source={require('../../assets/icons/ts.png')} 
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Terms of Service</Text>
+              <Text style={styles.menuText}>{t.termsOfService}</Text>
             </View>
           </CartBox>
 
@@ -478,7 +513,7 @@ export default function ProfileScreen() {
                 style={[styles.menuIconImage, styles.logoutIconImage]}
                 resizeMode="contain"
               />
-              <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
+              <Text style={[styles.menuText, styles.logoutText]}>{t.logout}</Text>
             </View>
           </CartBox>
         </View>
@@ -499,7 +534,7 @@ export default function ProfileScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.modalTitle}>Language</Text>
+            <Text style={styles.modalTitle}>{t.language}</Text>
             
             {/* Language Options */}
             <View style={styles.languageOptions}>
@@ -539,7 +574,7 @@ export default function ProfileScreen() {
             
             {/* Select Button */}
             <Button1
-              text="Select"
+              text={t.select}
               width="100%"
               onPress={handleSelectLanguage}
               backgroundColor={colors.primary}
@@ -555,12 +590,12 @@ export default function ProfileScreen() {
       <Popup
         visible={showLogoutPopup}
         onClose={handleCancelLogout}
-        title="Logout?"
+        title={t.logoutTitle}
         titleStyle={styles.popupTitle}
         popupStyle={styles.popupBox}
         dismissOnOverlayPress={false}>
         <Text style={styles.popupMessage}>
-        Confirm the logging out by clicking “yes”.
+        {t.logoutMessage}
         </Text>
         
         <View style={styles.popupButtons}>
@@ -568,14 +603,14 @@ export default function ProfileScreen() {
             style={styles.cancelButton}
             onPress={handleCancelLogout}
             activeOpacity={0.7}>
-            <Text style={styles.cancelButtonText}>No</Text>
+            <Text style={styles.cancelButtonText}>{t.no}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.confirmLogoutButton}
             onPress={handleConfirmLogout}
             activeOpacity={0.7}>
-            <Text style={styles.confirmLogoutButtonText}>Yes</Text>
+            <Text style={styles.confirmLogoutButtonText}>{t.yes}</Text>
           </TouchableOpacity>
         </View>
       </Popup>
@@ -594,11 +629,11 @@ export default function ProfileScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.modalTitle}>Select Profile Avatar</Text>
+            <Text style={styles.modalTitle}>{t.selectProfileAvatar}</Text>
             
             {/* Description */}
             <Text style={styles.avatarModalMessage}>
-              Select one of the available avatar images for your profile.
+              {t.selectAvatarMessage}
             </Text>
             
             {/* Avatar Options */}
@@ -634,7 +669,7 @@ export default function ProfileScreen() {
 
             {/* Save Button */}
             <Button1
-              text="Save"
+              text={t.save}
               width="100%"
               onPress={handleSaveAvatar}
               backgroundColor={colors.primary}
@@ -793,17 +828,17 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-  
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: colors.secondary,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     paddingTop: 12,
     paddingBottom: 30,
     paddingHorizontal: 20,
     maxHeight: '70%',
+    shadowRadius: 50,
   },
   avatarModalContent: {
     backgroundColor: colors.secondary,

@@ -22,6 +22,7 @@ import InputBox from '../components/common/InputBox';
 import Toast, { showErrorToast, toastConfig } from '../components/common/Toast';
 import colors from '@/styles/Colors';
 import fonts from '@/styles/Fonts';
+import { getTranslations } from '../assets/Translation';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -30,6 +31,8 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [emailError, setEmailError] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string>('');
+  const [langId, setLangId] = useState<string>('en');
+  const [t, setT] = useState(getTranslations('en'));
 
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
@@ -44,27 +47,74 @@ export default function LoginScreen() {
     }
   }, []);
 
-  // Clear fields when screen is focused
+  // Load language and clear fields when screen is focused
   React.useEffect(() => {
+    const loadLanguage = async () => {
+      try {
+        const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+        setLangId(storedLangId);
+        setT(getTranslations(storedLangId));
+      } catch (error) {
+        console.error('Error loading language:', error);
+      }
+    };
+    
+    loadLanguage();
     setEmailOrUsername('');
     setPassword('');
     setEmailError('');
     setPasswordError('');
   }, []);
 
+  // Update translations when langId changes
+  React.useEffect(() => {
+    setT(getTranslations(langId));
+  }, [langId]);
+
   // Email/Username validation
   const validateEmailOrUsername = (text: string): string => {
     if (!text || text.trim().length === 0) {
-      return 'Email or Username is required';
+      return t.emailRequired;
     }
+    
+    // Check if it's a username (not an email - doesn't contain @)
+    // If it's a username, it must start with uppercase
+    const trimmedText = text.trim();
+    if (!trimmedText.includes('@')) {
+      // It's a username, check if it starts with uppercase
+      const firstChar = trimmedText.charAt(0);
+      if (firstChar && firstChar !== firstChar.toUpperCase()) {
+        return t.usernameMustStartUppercase;
+      }
+    }
+    
     return '';
   };
 
   // Password validation
   const validatePassword = (pwd: string): string => {
     if (!pwd || pwd.trim().length === 0) {
-      return 'Password is required';
+      return t.passwordRequired;
     }
+    
+    // Check for uppercase letter
+    const hasUppercase = /[A-Z]/.test(pwd);
+    if (!hasUppercase) {
+      return t.passwordMustContainUppercase;
+    }
+    
+    // Check for lowercase letter
+    const hasLowercase = /[a-z]/.test(pwd);
+    if (!hasLowercase) {
+      return t.passwordMustContainLowercase;
+    }
+    
+    // Check for symbol (special character)
+    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd);
+    if (!hasSymbol) {
+      return t.passwordMustContainSymbol;
+    }
+    
     return '';
   };
 
@@ -72,14 +122,28 @@ export default function LoginScreen() {
   const handleEmailChange = (text: string) => {
     setEmailOrUsername(text);
     console.log('Email/Username:', text);
-    if (emailError) setEmailError('');
+    
+    // Real-time validation
+    if (text.trim().length > 0) {
+      const error = validateEmailOrUsername(text);
+      setEmailError(error);
+    } else {
+      setEmailError('');
+    }
   };
 
   // Handle password change
   const handlePasswordChange = (text: string) => {
     setPassword(text);
     console.log('Password:', text);
-    if (passwordError) setPasswordError('');
+    
+    // Real-time validation
+    if (text.trim().length > 0) {
+      const error = validatePassword(text);
+      setPasswordError(error);
+    } else {
+      setPasswordError('');
+    }
   };
 
   // Handle login
@@ -108,7 +172,7 @@ export default function LoginScreen() {
         const userDetails = findUserById(authUser.id);
 
         if (!userDetails) {
-          showErrorToast('User details not found');
+          showErrorToast(t.userDetailsNotFound);
           return;
         }
 
@@ -125,7 +189,7 @@ export default function LoginScreen() {
           await AsyncStorage.setItem('userObj', JSON.stringify(fullUser));
         } catch (storageError) {
           console.error('Error saving to storage:', storageError);
-          showErrorToast('Failed to save user data');
+          showErrorToast(t.failedToSaveUserData);
           return;
         }
 
@@ -164,12 +228,12 @@ export default function LoginScreen() {
         Keyboard.dismiss();
         setEmailOrUsername('');
         setPassword('');
-        showErrorToast('Invalid credential');
+        showErrorToast(t.invalidCredential);
         // Don't focus email field - keep keyboard dismissed
       }
     } catch (error) {
       console.error('Login error:', error);
-      showErrorToast('Login failed. Please try again.');
+      showErrorToast(t.loginFailed);
     }
   };
 
@@ -189,15 +253,15 @@ export default function LoginScreen() {
 
           {/* Greeting */}
           <View style={styles.greeting_group}>
-            <Text style={styles.greetingTitle}>Welcome Back!</Text>
-            <Text style={styles.greetingSubtitle}>Please Sign in to continue.</Text>
+            <Text style={styles.greetingTitle}>{t.welcomeBack}</Text>
+            <Text style={styles.greetingSubtitle}>{t.pleaseSignIn}</Text>
           </View>
 
           {/* Input Fields */}
           <View style={styles.inputsContainer}>
             <InputBox
-              label="Email or Username"
-              placeholder="Enter your Email or Username"
+              label={t.emailOrUsername}
+              placeholder={t.enterEmailOrUsername}
               value={emailOrUsername}
               setValue={handleEmailChange}
               errorMessage={emailError}
@@ -209,8 +273,8 @@ export default function LoginScreen() {
             />
 
             <InputBox
-              label="Password"
-              placeholder="********"
+              label={t.password}
+              placeholder={t.passwordPlaceholder}
               //secureTextEntry={!showPassword}
               value={password}
               setValue={handlePasswordChange}
@@ -231,7 +295,7 @@ export default function LoginScreen() {
 
           {/* Login Button */}
           <View style={styles.signInBtnWrap}>
-            <Button1 text="Login" width={'90%'} onPress={handleSignIn} />
+            <Button1 text={t.login} width={'90%'} onPress={handleSignIn} />
           </View>
         </View>
         <Toast config={toastConfig} />
