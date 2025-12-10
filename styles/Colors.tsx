@@ -33,7 +33,8 @@ const colors = {
   status_late_bg:"#F593001A",
   progressBarBackground:"#E8E8E8",
   live_badge: "#FF0000",
-  assigned_staff:"#F76800"
+  assigned_staff:"#F76800",
+  popup_back:"#2196F333",
 };
 
 export default colors;

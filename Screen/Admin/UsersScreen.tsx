@@ -250,10 +250,10 @@ export default function UsersScreen() {
             <CartBox
               width="100%"
               height={60}
-              borderRadius={12}
-              borderWidth={1}
+              borderRadius={10}
+              borderWidth={0}
               marginBottom={12}
-              borderColor={colors.border}>
+              >
 
               <View style={styles.userItem}>
               <View style={styles.avatarContainer}>
