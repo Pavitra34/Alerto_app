@@ -12,6 +12,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -47,11 +48,24 @@ export default function UserProfileScreen() {
   // Delete popup state
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   
+  // Country picker state
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>('+49'); // Germany default
+  const [phoneError, setPhoneError] = useState<string>('');
+  
   // Edit values
   const [editingFullname, setEditingFullname] = useState('');
   const [editingUsername, setEditingUsername] = useState('');
   const [editingEmail, setEditingEmail] = useState('');
   const [editingPhone, setEditingPhone] = useState('');
+  
+  // Country codes (same as AddUserScreen)
+  const countryCodes = [
+    { code: '+49', flag: require('../../../assets/icons/german.png'), name: 'Germany', maxLength: 11 },
+    { code: '+44', flag: require('../../../assets/icons/english.png'), name: 'UK', maxLength: 10 },
+  ];
+  
+  const selectedCountry = countryCodes.find(c => c.code === selectedCountryCode) || countryCodes[0];
 
   const loadLanguage = async () => {
     try {
@@ -148,9 +162,49 @@ export default function UserProfileScreen() {
 
   const handleEditPhone = () => {
     if (user) {
-      setEditingPhone(user.phonenumber.toString());
+      // Parse existing phone number - assume it's stored without country code
+      // Default to +49 (Germany) if we can't determine
+      const phoneStr = user.phonenumber.toString();
+      // Try to detect country code from phone number length/format
+      // For now, default to +49
+      setSelectedCountryCode('+49');
+      setEditingPhone(phoneStr);
+      setPhoneError('');
       setShowEditPhoneModal(true);
     }
+  };
+  
+  const handleCountrySelect = (countryCode: string) => {
+    setSelectedCountryCode(countryCode);
+    setShowCountryPicker(false);
+    // Clear error when country changes
+    setPhoneError('');
+  };
+  
+  const handlePhoneNumberChange = (text: string) => {
+    // Remove non-numeric characters
+    const numericText = text.replace(/[^0-9]/g, '');
+    
+    // Get max length for selected country
+    const selectedCountry = countryCodes.find(c => c.code === selectedCountryCode);
+    const maxLength = selectedCountry?.maxLength || 11;
+    
+    // Clear error if user is typing
+    if (phoneError) {
+      setPhoneError('');
+    }
+    
+    // Check if exceeds max length
+    if (numericText.length > maxLength) {
+      setPhoneError(`Maximum ${maxLength} numbers`);
+      setEditingPhone(numericText.substring(0, maxLength));
+    } else {
+      setEditingPhone(numericText);
+    }
+  };
+  
+  const handleCloseCountryPicker = () => {
+    setShowCountryPicker(false);
   };
 
   // Save handlers
@@ -200,21 +254,34 @@ export default function UserProfileScreen() {
   };
 
   const handleSavePhone = () => {
-    if (editingPhone.trim() && user) {
-      // Validate phone number (basic check)
-      const phoneRegex = /^\d+$/;
-      if (!phoneRegex.test(editingPhone.trim())) {
-        Alert.alert('Invalid Phone Number', 'Please enter a valid phone number');
-        return;
-      }
+    // Reset error
+    setPhoneError('');
+    
+    // Validate phone number
+    if (!editingPhone.trim()) {
+      setPhoneError(t.phoneNumberRequired || 'Phone number is required');
+      return;
+    }
+    
+    const selectedCountry = countryCodes.find(c => c.code === selectedCountryCode);
+    const maxLength = selectedCountry?.maxLength || 11;
+    
+    if (editingPhone.length > maxLength) {
+      setPhoneError(`Maximum ${maxLength} numbers`);
+      return;
+    }
+    
+    if (user) {
       // Update user in dummyUsers array
       const userIndex = dummyUsers.findIndex((u) => u.id === user.id);
       if (userIndex !== -1) {
+        // Store phone number as integer (without country code, as per existing structure)
         dummyUsers[userIndex].phonenumber = parseInt(editingPhone.trim(), 10);
         setUser({ ...user, phonenumber: parseInt(editingPhone.trim(), 10) });
         showSuccessToast('Phone number updated successfully');
       }
       setShowEditPhoneModal(false);
+      setPhoneError('');
     }
   };
 
@@ -237,6 +304,7 @@ export default function UserProfileScreen() {
   const handleCloseEditPhoneModal = () => {
     setShowEditPhoneModal(false);
     setEditingPhone('');
+    setPhoneError('');
   };
 
   if (!user) {
@@ -294,7 +362,7 @@ export default function UserProfileScreen() {
           borderWidth={0}
           backgroundColor={colors.background}
           paddingTop={13}
-          paddingBottom={12}
+          paddingBottom={0}
           paddingRight={20}
           paddingLeft={20}
           marginBottom={0}
@@ -509,23 +577,112 @@ export default function UserProfileScreen() {
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <View style={styles.dragHandle} />
             <Text style={styles.modalTitle}>{t.editPhoneNumber}</Text>
-            <InputBox
-              label={t.phoneNumber}
-              placeholder={t.enterYourPhoneNumber}
-              value={editingPhone}
-              setValue={setEditingPhone}
-              keyboardType="phone-pad"
-              containerStyle={styles.editInputContainer}
-            />
-            <Button1
-              text={t.save}
-              width="100%"
-              onPress={handleSavePhone}
-              backgroundColor={colors.primary}
-              height={39}
-              containerStyle={styles.saveButton}
-              textStyle={styles.saveButtonText}
-            />
+            
+            {/* Phone Number Input with Country Code */}
+            <View style={styles.phoneInputWrapper}>
+              <View style={[
+                styles.phoneInputContainer,
+                phoneError && styles.phoneInputContainerError
+              ]}>
+                <Text style={styles.phoneLabel}>{t.phoneNumber}</Text>
+                <View style={styles.phoneInputBox}>
+                  <TouchableOpacity
+                    style={styles.countryCodeSection}
+                    onPress={() => setShowCountryPicker(true)}
+                    activeOpacity={0.7}>
+                    <Image
+                      source={selectedCountry.flag}
+                      style={styles.flagIconStyle}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.countryCodeText}>{selectedCountry.code}</Text>
+                    <Image
+                      source={require('../../../assets/icons/drop.png')}
+                      style={styles.dropdownArrowStyle}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.phoneNumberInput}
+                    placeholder="123456789"
+                    placeholderTextColor={colors.subtext3}
+                    value={editingPhone}
+                    onChangeText={handlePhoneNumberChange}
+                    keyboardType="phone-pad"
+                    maxLength={selectedCountry.maxLength || 11}
+                  />
+                </View>
+              </View>
+              {phoneError ? (
+                <Text style={styles.phoneError}>{phoneError}</Text>
+              ) : null}
+            </View>
+            
+            {/* Save and Cancel Buttons */}
+            <View style={styles.phoneModalButtons}>
+              <TouchableOpacity
+                style={styles.cancelPhoneButton}
+                onPress={handleCloseEditPhoneModal}
+                activeOpacity={0.7}>
+                <Text style={styles.cancelPhoneButtonText}>{t.no || 'Cancel'}</Text>
+              </TouchableOpacity>
+              <Button1
+                text={t.save}
+                width="48%"
+                onPress={handleSavePhone}
+                backgroundColor={colors.primary}
+                height={39}
+                containerStyle={styles.savePhoneButton}
+                textStyle={styles.saveButtonText}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Country Picker Modal */}
+      <Modal
+        visible={showCountryPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCloseCountryPicker}>
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={handleCloseCountryPicker}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.dragHandle} />
+            <Text style={styles.modalTitle}>Select Country</Text>
+            
+            <View style={styles.countryOptions}>
+              {countryCodes.map((country) => (
+                <TouchableOpacity
+                  key={country.code}
+                  style={[
+                    styles.countryOption,
+                    selectedCountryCode === country.code && styles.countryOptionSelected,
+                  ]}
+                  onPress={() => handleCountrySelect(country.code)}
+                  activeOpacity={0.7}>
+                  <Image
+                    source={country.flag}
+                    style={styles.countryFlagIcon}
+                    resizeMode="contain"
+                  />
+                  <Text style={[
+                    styles.countryCodeText,
+                    selectedCountryCode === country.code && styles.countryCodeTextSelected,
+                  ]}>
+                    {country.code}
+                  </Text>
+                  <Text style={[
+                    styles.countryName,
+                    selectedCountryCode === country.code && styles.countryNameSelected,
+                  ]}>
+                    {country.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -618,14 +775,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
     color: colors.subtext,
-    marginBottom: 14,
+    marginBottom: 2,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 24,
+    marginTop: 12,
+    marginBottom: 12,
   },
   infoLeft: {
     flexDirection: 'row',
@@ -671,7 +829,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 10,
+    borderRadius: 20,
     alignItems: 'center',
   },
   actionButtonText: {
@@ -709,30 +867,35 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: colors.secondary,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 20,
     paddingBottom: 30,
     paddingHorizontal: 20,
     maxHeight: '70%',
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   dragHandle: {
     width: 40,
-    height: 4,
-    backgroundColor: '#D1D5DB',
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: colors.modal_line,
+    borderRadius: 10,
     alignSelf: 'center',
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: fonts.size.l,
-    fontFamily: fonts.family.bold,
-    fontWeight: fonts.weight.bold,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.medium,
     color: colors.text,
     textAlign: 'center',
     marginBottom: 20,
@@ -741,70 +904,196 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   saveButton: {
-    marginTop: 8,
+    marginTop: 10,
   },
   saveButtonText: {
     color: colors.secondary,
-    fontSize: fonts.size.m,
-    fontFamily: fonts.family.medium,
+    fontSize: fonts.size.l,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
   },
   popupBox: {
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 20,
-    borderColor: '#FF3B30',
+    borderColor: colors.popupBorderColor,
   },
   popupTitle: {
-    fontSize: 14,
-    fontFamily: fonts.family.bold,
-    fontWeight: '400',
-    color: '#FF3B30',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  popupMessage: {
-    fontSize: 12,
+    fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
-    color: colors.text,
+    color: colors.primary,
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
+    marginBottom: 8,
+  },
+  popupMessage: {
+    fontSize: fonts.size.s,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.subtext,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 18,
   },
   popupButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 20,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.button_background,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    height: 39,
   },
   cancelButtonText: {
     fontSize: fonts.size.m,
-    fontFamily: fonts.family.medium,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
-    color: '#6B7280',
+    color: colors.button_text,
   },
   confirmDeleteButton: {
     flex: 1,
     backgroundColor: colors.primary,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    height: 39,
   },
   confirmDeleteButtonText: {
     fontSize: fonts.size.m,
-    fontFamily: fonts.family.medium,
+    fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
     color: colors.secondary,
+  },
+  phoneInputWrapper: {
+    marginBottom: 20,
+  },
+  phoneLabel: {
+    color: colors.primary,
+    fontSize: fonts.size.xs,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    marginBottom: 4,
+  },
+  phoneInputContainer: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    minHeight: 52,
+  },
+  phoneInputContainerError: {
+    borderColor: colors.error_text || '#FF3B30',
+  },
+  phoneInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  countryCodeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  flagIconStyle: {
+    width: 20,
+    height: 20,
+  },
+  dropdownArrowStyle: {
+    width: 12,
+    height: 12,
+  },
+  phoneNumberInput: {
+    flex: 1,
+    fontSize: fonts.size.m,
+    color: colors.text,
+    padding: 0,
+    margin: 0,
+    marginTop: 2,
+    fontFamily: fonts.family.regular,
+  },
+  phoneError: {
+    fontSize: 12,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.error_text || '#FF3B30',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  phoneModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelPhoneButton: {
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  cancelPhoneButtonText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
+    color: '#6B7280',
+  },
+  savePhoneButton: {
+    marginTop: 0,
+  },
+  countryOptions: {
+    marginBottom: 24,
+  },
+  countryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+    gap: 12,
+  },
+  countryOptionSelected: {
+    borderColor: colors.primary,
+  },
+  countryFlagIcon: {
+    width: 24,
+    height: 24,
+  },
+  countryCodeText: {
+    fontSize: 14,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.text,
+  },
+  countryCodeTextSelected: {
+    color: colors.text,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
+  },
+  countryName: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.subtext2,
+  },
+  countryNameSelected: {
+    color: colors.text,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
   },
 });
 

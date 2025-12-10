@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 50,
+    paddingBottom: 30,
     maxHeight: '80%',
     shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
