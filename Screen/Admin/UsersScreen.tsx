@@ -17,6 +17,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTranslations } from '../../assets/Translation';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
 import CartBox from '../../components/common/CartBox';
@@ -40,7 +41,27 @@ export default function UsersScreen() {
   const [selectedStatus, setSelectedStatus] = useState<'active' | 'inactive' | null>(null);
   const [tempSelectedStatus, setTempSelectedStatus] = useState<'active' | 'inactive' | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [t, setT] = useState(getTranslations('en'));
   const insets = useSafeAreaInsets();
+
+  const loadLanguage = async () => {
+    try {
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      setT(getTranslations(storedLangId));
+    } catch (error) {
+      console.error('Error loading language:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLanguage();
+    // Reload language when screen is focused (e.g., returning from LanguageScreen)
+    const interval = setInterval(() => {
+      loadLanguage();
+    }, 1000); // Check every second for language changes
+
+    return () => clearInterval(interval);
+  }, []);
   
   // Default FAB position
   const defaultFabPosition = { x: SCREEN_WIDTH - 100, y: SCREEN_HEIGHT - 140 };
@@ -213,9 +234,9 @@ export default function UsersScreen() {
 
   const getStatusText = (activeStatus: boolean | null): string => {
     if (activeStatus === true) {
-      return 'Active';
+      return t.active;
     } else {
-      return 'Inactive'; // Both false and null show as Inactive
+      return t.inactive; // Both false and null show as Inactive
     }
   };
 
@@ -232,7 +253,7 @@ export default function UsersScreen() {
         <Header
           center={{
             type: 'text',
-            value: 'Users',
+            value: t.users,
           }}
           right={{
             type: 'image',
@@ -246,7 +267,7 @@ export default function UsersScreen() {
       
       <View style={styles.searchBarContainer}>
         <SearchBar
-          placeholder="Search by name"
+          placeholder={t.searchByName}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -328,7 +349,7 @@ export default function UsersScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.modalTitle}>Status</Text>
+            <Text style={styles.modalTitle}>{t.status}</Text>
             
             {/* Status Options */}
             <View style={styles.statusOptions}>
@@ -343,7 +364,7 @@ export default function UsersScreen() {
                   styles.statusOptionText,
                   tempSelectedStatus === 'active' && styles.statusOptionTextSelected,
                 ]}>
-                  Active
+                  {t.active}
                 </Text>
               </TouchableOpacity>
               
@@ -358,14 +379,14 @@ export default function UsersScreen() {
                   styles.statusOptionText,
                   tempSelectedStatus === 'inactive' && styles.statusOptionTextSelected,
                 ]}>
-                  Inactive
+                  {t.inactive}
                 </Text>
               </TouchableOpacity>
             </View>
             
             {/* Select Button */}
             <Button1
-              text="Select"
+              text={t.select}
               width="100%"
               onPress={handleApplyFilter}
               backgroundColor={colors.primary}

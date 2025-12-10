@@ -1,19 +1,24 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Modal,
+  Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, findCameraById } from '../../api/Camera';
 import { EmployeeActive, findEmployeeActiveByUserId, getActiveEmployees } from '../../api/Employee_active';
 import { ReportMessageEntry, Task, dummyTasks, findTasksByThreatId } from '../../api/Tasks';
 import { Threat, dummyThreats, getUnassignedThreats } from '../../api/Threat';
 import { User, findUserById } from '../../api/users';
+import { getTranslations } from '../../assets/Translation';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
@@ -35,7 +40,7 @@ interface AlertCardProps {
   onReassignPress: (threat: Threat) => void;
 }
 
-const AlertCard: React.FC<AlertCardProps> = ({
+const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
   threat,
   camera,
   activeTab,
@@ -44,6 +49,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
   reportMessages,
   onAssignPress,
   onReassignPress,
+  t,
 }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
@@ -92,7 +98,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
           <Text style={styles.threatType}>{getThreatTypeDisplay(threat.threat_type)}</Text>
-          <Text style={styles.cameraName}>{camera?.name || 'Unknown Camera'}</Text>
+          <Text style={styles.cameraName}>{camera?.name || t.unknownCamera}</Text>
         </View>
       </View>
       {/* Camera Location Section */}
@@ -103,7 +109,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
             style={styles.locationIcon}
             resizeMode="contain"
           />
-          <Text style={styles.locationText}>{camera?.location || 'Unknown Location'}</Text>
+          <Text style={styles.locationText}>{camera?.location || t.unknownLocation}</Text>
         </View>
         <View style={styles.locationSection}>
         <Image
@@ -144,15 +150,15 @@ const AlertCard: React.FC<AlertCardProps> = ({
         <View style={styles.badgesContainer}>
           {activeTab === 'reviewed' && task?.review_status ? (
             <View style={styles.reviewedBadge}>
-              <Text style={styles.badgeText}>Reviewed</Text>
+              <Text style={styles.badgeText}>{t.reviewed}</Text>
             </View>
           ) : threat.threat_status ? (
             <View style={styles.assignedBadge}>
-              <Text style={styles.badgeText}>Assigned</Text>
+              <Text style={styles.badgeText}>{t.assigned}</Text>
             </View>
           ) : (
             <View style={styles.unassignedBadge}>
-              <Text style={styles.badgeText}>Unreviewed</Text>
+              <Text style={styles.badgeText}>{t.unreviewed}</Text>
             </View>
           )}
           <View style={[styles.levelBadge, { backgroundColor: getThreatLevelColor(threat.threat_level) }]}>
@@ -166,7 +172,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
         <>
           {reportMessages.map((report, index) => {
             const employee = assignedEmployees?.find((emp) => emp.user?.id === report.user_id);
-            const employeeName = employee?.user?.fullname || 'Unknown';
+            const employeeName = employee?.user?.fullname || t.unknown;
             return (
               <CartBox
                 key={index}
@@ -182,10 +188,10 @@ const AlertCard: React.FC<AlertCardProps> = ({
                 alignItems="flex-start">                
                   <View>
                     <Text style={styles.reviewedStaffText}>
-                      Assigned staff: {employeeName}
+                      {t.assignedStaff} {employeeName}
                     </Text>
                     <Text style={styles.reportMessageText}>
-                      Report: {report.message}
+                      {t.report} {report.message}
                     </Text>
                   </View>
                   <View style={styles.reportCardContent}>
@@ -208,7 +214,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
       {activeTab === 'assigned' && threat.threat_status && assignedEmployees && assignedEmployees.length > 0 && (
         <>
           {assignedEmployees.map((emp, index) => {
-            const employeeName = emp.user?.fullname || 'Unknown';
+            const employeeName = emp.user?.fullname || t.unknown;
             const employeeActive = emp.employeeActive;
             return (
               <CartBox
@@ -225,7 +231,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
                 marginBottom={12}
                 alignItems="flex-start">
                     <Text style={styles.assignedStaffCardName} ellipsizeMode="tail" numberOfLines={1}>
-                      Assigned staff: {employeeName}
+                      {t.assignedStaff} {employeeName}
                     </Text>
               </CartBox>
             );
@@ -237,7 +243,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
       {activeTab !== 'reviewed' && (
         threat.threat_status ? (
           <Button1
-            text="Reassign"
+            text={t.reassign}
             onPress={() => onReassignPress(threat)}
             backgroundColor={colors.secondary}
             textStyle={styles.assignButtontext}
@@ -246,7 +252,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
           />
         ) : (
           <Button1
-            text="Assign"
+            text={t.assign}
             onPress={() => onAssignPress(threat)}
             backgroundColor={colors.secondary}
             textStyle={styles.assignButtontext}
@@ -269,13 +275,14 @@ interface AssignModalProps {
   onAssign: (threatId: string, userIds: string[]) => void;
 }
 
-const AssignModal: React.FC<AssignModalProps> = ({
+const AssignModal: React.FC<AssignModalProps & { t: any }> = ({
   visible,
   threat,
   activeEmployees,
   preSelectedUserIds = [],
   onClose,
   onAssign,
+  t,
 }) => {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>(preSelectedUserIds);
 
@@ -325,7 +332,7 @@ const AssignModal: React.FC<AssignModalProps> = ({
           {/* Modal Header */}
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderLine} />
-            <Text style={styles.modalTitle}>Assign staff</Text>
+            <Text style={styles.modalTitle}>{t.assignStaff}</Text>
           </View>
 
           {/* Employee List */}
@@ -338,13 +345,13 @@ const AssignModal: React.FC<AssignModalProps> = ({
                   selectedUserIds.includes(emp.user_id) && styles.employeeRowSelected,
                 ]}
                 onPress={() => toggleEmployeeSelection(emp.user_id)}>
-                <Text style={styles.employeeName}>{emp.user?.fullname || 'Unknown'}</Text>
+                <Text style={styles.employeeName}>{emp.user?.fullname || t.unknown}</Text>
                 <View style={[
                   styles.statusBadge,
                   emp.active_status ? styles.statusBadgeActive : styles.statusBadgeInactive,
                 ]}>
                   <Text style={styles.statusBadgeText}>
-                    {emp.active_status ? 'Active' : 'Inactive'}
+                    {emp.active_status ? t.active : t.inactive}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -353,7 +360,7 @@ const AssignModal: React.FC<AssignModalProps> = ({
 
           {/* Assign Button */}
           <Button1
-            text="Assign"
+            text={t.assign}
             onPress={handleAssign}
             backgroundColor={colors.primary}
             width="100%"
@@ -371,6 +378,26 @@ export default function AlertScreen() {
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [t, setT] = useState(getTranslations('en'));
+
+  const loadLanguage = async () => {
+    try {
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      setT(getTranslations(storedLangId));
+    } catch (error) {
+      console.error('Error loading language:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLanguage();
+    // Reload language when screen is focused (e.g., returning from LanguageScreen)
+    const interval = setInterval(() => {
+      loadLanguage();
+    }, 1000); // Check every second for language changes
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Get active employees with user details
   const activeEmployeesWithUsers = useMemo(() => {
@@ -387,10 +414,10 @@ export default function AlertScreen() {
       case 'unreviewed':
         return getUnassignedThreats();
       case 'assigned':
-        return dummyThreats.filter((t) => t.threat_status === true);
+        return dummyThreats.filter((threat) => threat.threat_status === true);
       case 'reviewed':
-        return dummyThreats.filter((t) => {
-          const task = dummyTasks.find((task) => task.threat_id === t._id);
+        return dummyThreats.filter((threat) => {
+          const task = dummyTasks.find((task) => task.threat_id === threat._id);
           return task && task.review_status === true;
         });
       default:
@@ -408,7 +435,7 @@ export default function AlertScreen() {
     // For reassignment: Remove old tasks and create new ones
     const existingTasks = dummyTasks.filter((task) => task.threat_id === threatId);
     existingTasks.forEach((task) => {
-      const index = dummyTasks.findIndex((t) => t._id === task._id);
+      const index = dummyTasks.findIndex((taskItem) => taskItem._id === task._id);
       if (index !== -1) {
         dummyTasks.splice(index, 1);
       }
@@ -429,7 +456,7 @@ export default function AlertScreen() {
     dummyTasks.push(newTask);
 
     // Update threat status (in real app, this would be an API call)
-    const threat = dummyThreats.find((t) => t._id === threatId);
+    const threat = dummyThreats.find((threatItem) => threatItem._id === threatId);
     if (threat) {
       threat.threat_status = true;
       threat.updatedat = new Date().toISOString();
@@ -454,23 +481,32 @@ export default function AlertScreen() {
 
   return (
     <View style={styles.container}>
-      <Header
-        center={{
-          type: 'text',
-          value: 'Alert & Events',
-        }}
-        right={{
-          type: 'image',
-          url: require('../../assets/icons/notification.png'),
-          width: 24,
-          height: 24,
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          center={{
+            type: 'text',
+            value: t.alertAndEvents,
+          }}
+          right={{
+            type: 'image',
+            url: require('../../assets/icons/notification.png'),
+            width: 24,
+            height: 24,
+          }}
+        />
+      </SafeAreaView>
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         <Button1
-          text="Unreviewed"
+          text={t.unreviewed}
           onPress={() => setActiveTab('unreviewed')}
           backgroundColor={activeTab === 'unreviewed' ? colors.primary : colors.secondary}
           width="31%"
@@ -484,7 +520,7 @@ export default function AlertScreen() {
           }
         />
         <Button1
-          text="Assigned"
+          text={t.assigned}
           onPress={() => setActiveTab('assigned')}
           backgroundColor={activeTab === 'assigned' ? colors.primary : colors.secondary}
           width="31%"
@@ -498,7 +534,7 @@ export default function AlertScreen() {
           }
         />
         <Button1
-          text="Reviewed"
+          text={t.reviewed}
           onPress={() => setActiveTab('reviewed')}
           backgroundColor={activeTab === 'reviewed' ? colors.primary : colors.secondary}
           width="31%"
@@ -519,7 +555,7 @@ export default function AlertScreen() {
         showsVerticalScrollIndicator={false}>
         {filteredThreats.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No alerts found</Text>
+            <Text style={styles.emptyText}>{t.noAlertsFound}</Text>
           </View>
         ) : (
           filteredThreats.map((threat) => {
@@ -536,7 +572,7 @@ export default function AlertScreen() {
             });
             
             // Get task and report messages for reviewed tab
-            const task = assignedTasks.find((t) => t.review_status === true) || assignedTasks[0];
+            const task = assignedTasks.find((taskItem) => taskItem.review_status === true) || assignedTasks[0];
             const reportMessages = task?.review_status && task?.report_message ? task.report_message : undefined;
             
             return (
@@ -550,6 +586,7 @@ export default function AlertScreen() {
                 reportMessages={reportMessages}
                 onAssignPress={handleAssignPress}
                 onReassignPress={handleReassignPress}
+                t={t}
               />
             );
           })
@@ -573,6 +610,7 @@ export default function AlertScreen() {
           setSelectedThreat(null);
         }}
         onAssign={handleAssign}
+        t={t}
       />
     </View>
   );
@@ -582,14 +620,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     justifyContent: 'space-between',
     marginTop: 20,
-    marginBottom:20,
+    marginBottom: 20,
   },
   tabButton: {
     flex: 1,

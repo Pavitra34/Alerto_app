@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import React, { useEffect, useState } from 'react';
@@ -5,13 +6,17 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, dummyCameras } from '../../api/Camera';
+import { getTranslations } from '../../assets/Translation';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import Toast, { showErrorToast, toastConfig } from '../../components/common/Toast';
@@ -29,9 +34,10 @@ interface CameraCardProps {
   thumbnailUri: string | null;
   isLoading: boolean;
   onPress?: () => void;
+  t: any;
 }
 
-const CameraCard: React.FC<CameraCardProps> = ({ camera, thumbnailUri, isLoading, onPress }) => {
+const CameraCard: React.FC<CameraCardProps> = ({ camera, thumbnailUri, isLoading, onPress, t }) => {
   const isLive = camera.camera_status;
 
   return (
@@ -70,7 +76,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, thumbnailUri, isLoading
           {isLive && (
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
+              <Text style={styles.liveText}>{t.live}</Text>
             </View>
           )}
         </View>
@@ -100,6 +106,26 @@ export default function CameraScreen() {
   const router = useRouter();
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
+  const [t, setT] = useState(getTranslations('en'));
+
+  const loadLanguage = async () => {
+    try {
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      setT(getTranslations(storedLangId));
+    } catch (error) {
+      console.error('Error loading language:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLanguage();
+    // Reload language when screen is focused (e.g., returning from LanguageScreen)
+    const interval = setInterval(() => {
+      loadLanguage();
+    }, 1000); // Check every second for language changes
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Generate thumbnails for all cameras
   useEffect(() => {
@@ -115,7 +141,7 @@ export default function CameraScreen() {
             setThumbnails((prev) => ({ ...prev, [camera._id]: uri }));
           } catch (error) {
             // Show error toast when thumbnail generation fails
-            showErrorToast('Unable to load camera preview');
+            showErrorToast(t?.unableToLoadCameraPreview || 'Unable to load camera preview');
           } finally {
             setLoadingThumbnails((prev) => ({ ...prev, [camera._id]: false }));
           }
@@ -124,7 +150,7 @@ export default function CameraScreen() {
     };
 
     generateThumbnails();
-  }, []);
+  }, [t]);
 
   const handleCameraPress = (camera: Camera) => {
     router.push({
@@ -141,18 +167,27 @@ export default function CameraScreen() {
 
   return (
     <View style={styles.container}>
-      <Header
-        center={{
-          type: 'text',
-          value: 'Camera',
-        }}
-        right={{
-          type: 'image',
-          url: require('../../assets/icons/notification.png'),
-          width: 24,
-          height: 24,
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          center={{
+            type: 'text',
+            value: t.camera,
+          }}
+          right={{
+            type: 'image',
+            url: require('../../assets/icons/notification.png'),
+            width: 24,
+            height: 24,
+          }}
+        />
+      </SafeAreaView>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
@@ -164,6 +199,7 @@ export default function CameraScreen() {
               thumbnailUri={thumbnails[camera._id] || null}
               isLoading={loadingThumbnails[camera._id] || false}
               onPress={() => handleCameraPress(camera)}
+              t={t}
             />
           ))}
         </View>
@@ -178,12 +214,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: CARD_PADDING,
     paddingBottom: 100,
-    marginTop:8,
+    marginTop: 8,
   },
   gridContainer: {
     flexDirection: 'row',

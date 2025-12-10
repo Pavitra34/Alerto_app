@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { findUserByEmail, findUserByUsername } from '../../api/auth';
+import { getTranslations } from '../../assets/Translation';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
@@ -43,6 +44,26 @@ export default function ProfileScreen() {
   const [editingFullname, setEditingFullname] = useState<string>('');
   const [editingEmail, setEditingEmail] = useState<string>('');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [t, setT] = useState(getTranslations('en'));
+
+  const loadLanguage = async () => {
+    try {
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      setT(getTranslations(storedLangId));
+    } catch (error) {
+      console.error('Error loading language:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLanguage();
+    // Reload language when screen is focused (e.g., returning from LanguageScreen)
+    const interval = setInterval(() => {
+      loadLanguage();
+    }, 1000); // Check every second for language changes
+
+    return () => clearInterval(interval);
+  }, []);
 
   const languages = [
     {
@@ -163,6 +184,8 @@ export default function ProfileScreen() {
       const langIdToSave = selectedLanguage === 'deutsch' ? 'de' : 'en';
       await AsyncStorage.setItem('langId', langIdToSave);
       setShowLanguageModal(false);
+      // Reload translations immediately after language change
+      setT(getTranslations(langIdToSave));
       console.log('Language saved:', langIdToSave);
     } catch (error) {
       console.error('Error saving language:', error);
@@ -244,7 +267,7 @@ export default function ProfileScreen() {
         console.log('Avatar saved:', selectedImageUri);
         
         // Show success toast
-        showSuccessToast('Image added successfully');
+        showSuccessToast(t.imageAddedSuccessfully);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -277,7 +300,7 @@ export default function ProfileScreen() {
       } catch (error) {
         console.error('Error saving fullname:', error);
       }
-      showSuccessToast('Fullname updated successfully');
+      showSuccessToast(t.fullnameUpdatedSuccessfully);
     }
   };
 
@@ -302,7 +325,7 @@ export default function ProfileScreen() {
       } catch (error) {
         console.error('Error saving email:', error);
       }
-      showSuccessToast('Email updated successfully');
+      showSuccessToast(t.emailUpdatedSuccessfully);
     }
   };
 
@@ -329,7 +352,7 @@ export default function ProfileScreen() {
         <Header
           center={{
             type: 'text',
-            value: 'Profile',
+            value: t.profile,
           }}
         />
       </SafeAreaView>
@@ -386,7 +409,7 @@ export default function ProfileScreen() {
             height={159}
             alignItems="flex-start"
             justifyContent="flex-start">
-            <Text style={styles.sectionHeadingInBox}>Personal Information</Text>
+            <Text style={styles.sectionHeadingInBox}>{t.personalInformation}</Text>
             <TouchableOpacity 
               style={styles.infoRow}
               onPress={handleEditFullname}
@@ -397,7 +420,7 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Fullname</Text>
+                <Text style={styles.infoLabel}>{t.fullname}</Text>
                 <Text style={styles.infoValue}>{fullname}</Text>
               </View>
             </TouchableOpacity>
@@ -411,7 +434,7 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
               <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoLabel}>{t.email}</Text>
                 <Text style={styles.infoValue}>{email}</Text>
               </View>
             </TouchableOpacity>
@@ -428,7 +451,7 @@ export default function ProfileScreen() {
             height={82}
             alignItems="flex-start"
             justifyContent="flex-start">
-            <Text style={styles.sectionHeadingInBox}>Preferences</Text>
+            <Text style={styles.sectionHeadingInBox}>{t.preferences}</Text>
             <TouchableOpacity 
               style={styles.menuRowInBox}
               onPress={() => handleMenuPress('Language')}>
@@ -437,7 +460,7 @@ export default function ProfileScreen() {
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Language</Text>
+              <Text style={styles.menuText}>{t.language}</Text>
             </TouchableOpacity>
           </CartBox>
 
@@ -452,7 +475,7 @@ export default function ProfileScreen() {
             height={205}
             alignItems="flex-start"
             justifyContent="flex-start">
-            <Text style={styles.sectionHeadingInBox}>Support & Legal</Text>
+            <Text style={styles.sectionHeadingInBox}>{t.supportAndLegal}</Text>
             <TouchableOpacity 
               style={styles.menuRowInBox}
               onPress={() => handleMenuPress('Help center')}>
@@ -461,7 +484,7 @@ export default function ProfileScreen() {
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Help center</Text>
+              <Text style={styles.menuText}>{t.helpCenter}</Text>
             </TouchableOpacity>
             
            
@@ -474,7 +497,7 @@ export default function ProfileScreen() {
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>About us</Text>
+              <Text style={styles.menuText}>{t.aboutUs}</Text>
             </TouchableOpacity>
             
           
@@ -487,7 +510,7 @@ export default function ProfileScreen() {
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Privacy policy</Text>
+              <Text style={styles.menuText}>{t.privacyPolicy}</Text>
             </TouchableOpacity>
             
           
@@ -500,7 +523,7 @@ export default function ProfileScreen() {
                 style={styles.menuIconImage}
                 resizeMode="contain"
               />
-              <Text style={styles.menuText}>Terms of Service</Text>
+              <Text style={styles.menuText}>{t.termsOfService}</Text>
             </TouchableOpacity>
           </CartBox>
 
@@ -520,7 +543,7 @@ export default function ProfileScreen() {
                 style={[styles.menuIconImage, styles.logoutIconImage]}
                 resizeMode="contain"
               />
-              <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
+              <Text style={[styles.menuText, styles.logoutText]}>{t.logout}</Text>
             </View>
           </CartBox>
         </View>
@@ -541,7 +564,7 @@ export default function ProfileScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.modalTitle}>Language</Text>
+            <Text style={styles.modalTitle}>{t.language}</Text>
             
             {/* Language Options */}
             <View style={styles.languageOptions}>
@@ -581,7 +604,7 @@ export default function ProfileScreen() {
             
             {/* Select Button */}
             <Button1
-              text="Select"
+              text={t.select}
               width="100%"
               onPress={handleSelectLanguage}
               backgroundColor={colors.primary}
@@ -597,12 +620,12 @@ export default function ProfileScreen() {
       <Popup
         visible={showLogoutPopup}
         onClose={handleCancelLogout}
-        title="Logout?"
+        title={t.logoutTitle}
         titleStyle={styles.popupTitle}
         popupStyle={styles.popupBox}
         dismissOnOverlayPress={false}>
         <Text style={styles.popupMessage}>
-        Confirm the logging out by clicking “yes”.
+        {t.logoutMessage}
         </Text>
         
         <View style={styles.popupButtons}>
@@ -610,14 +633,14 @@ export default function ProfileScreen() {
             style={styles.cancelButton}
             onPress={handleCancelLogout}
             activeOpacity={0.7}>
-            <Text style={styles.cancelButtonText}>No</Text>
+            <Text style={styles.cancelButtonText}>{t.no}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.confirmLogoutButton}
             onPress={handleConfirmLogout}
             activeOpacity={0.7}>
-            <Text style={styles.confirmLogoutButtonText}>Yes</Text>
+            <Text style={styles.confirmLogoutButtonText}>{t.yes}</Text>
           </TouchableOpacity>
         </View>
       </Popup>
@@ -636,12 +659,12 @@ export default function ProfileScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.modalTitle}>Edit Fullname</Text>
+            <Text style={styles.modalTitle}>{t.editFullname}</Text>
             
             {/* Input Field */}
             <InputBox
-              label="Fullname"
-              placeholder="Enter your fullname"
+              label={t.fullname}
+              placeholder={t.enterYourFullname}
               value={editingFullname}
               setValue={setEditingFullname}
               containerStyle={styles.editInputContainer}
@@ -649,7 +672,7 @@ export default function ProfileScreen() {
             
             {/* Save Button */}
             <Button1
-              text="Save"
+              text={t.save}
               width="100%"
               onPress={handleSaveFullname}
               backgroundColor={colors.primary}
@@ -675,12 +698,12 @@ export default function ProfileScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.modalTitle}>Edit Email</Text>
+            <Text style={styles.modalTitle}>{t.editEmail}</Text>
             
             {/* Input Field */}
             <InputBox
-              label="Email"
-              placeholder="Enter your email"
+              label={t.email}
+              placeholder={t.enterYourEmail}
               value={editingEmail}
               setValue={setEditingEmail}
               keyboardType="email-address"
@@ -690,7 +713,7 @@ export default function ProfileScreen() {
             
             {/* Save Button */}
             <Button1
-              text="Save"
+              text={t.save}
               width="100%"
               onPress={handleSaveEmail}
               backgroundColor={colors.primary}
