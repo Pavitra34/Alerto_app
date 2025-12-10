@@ -24,8 +24,8 @@ export const dummyThreats: Threat[] = [
   {
     _id: "threat002",
     camera_id: "cam002", // Parking Lot Camera
-    threat_type: "Motion",
-    threat_level: "Low",
+    threat_type: "motion",
+    threat_level: "High",
     threat_status: false, // unassigned
     createdat: "2024-12-20T11:15:00.000Z",
     updatedat: "2024-12-20T11:20:00.000Z",
