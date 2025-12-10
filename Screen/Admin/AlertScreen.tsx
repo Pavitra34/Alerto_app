@@ -10,8 +10,8 @@ import {
   View,
 } from 'react-native';
 import { Camera, findCameraById } from '../../api/Camera';
-import { EmployeeActive, getActiveEmployees } from '../../api/Employee_active';
-import { Task, dummyTasks, findTasksByThreatId } from '../../api/Tasks';
+import { EmployeeActive, findEmployeeActiveByUserId, getActiveEmployees } from '../../api/Employee_active';
+import { ReportMessageEntry, Task, dummyTasks, findTasksByThreatId } from '../../api/Tasks';
 import { Threat, dummyThreats, getUnassignedThreats } from '../../api/Threat';
 import { User, findUserById } from '../../api/users';
 import { Button1 } from '../../components/common/Button';
@@ -28,7 +28,9 @@ interface AlertCardProps {
   threat: Threat;
   camera: Camera | undefined;
   activeTab: TabType;
-  assignedEmployees?: Array<{ user: User | undefined }>;
+  assignedEmployees?: Array<{ user: User | undefined; employeeActive?: EmployeeActive | undefined }>;
+  task?: Task | undefined;
+  reportMessages?: ReportMessageEntry[];
   onAssignPress: (threat: Threat) => void;
   onReassignPress: (threat: Threat) => void;
 }
@@ -38,6 +40,8 @@ const AlertCard: React.FC<AlertCardProps> = ({
   camera,
   activeTab,
   assignedEmployees,
+  task,
+  reportMessages,
   onAssignPress,
   onReassignPress,
 }) => {
@@ -138,7 +142,11 @@ const AlertCard: React.FC<AlertCardProps> = ({
 
         {/* Badges Overlay */}
         <View style={styles.badgesContainer}>
-          {threat.threat_status ? (
+          {activeTab === 'reviewed' && task?.review_status ? (
+            <View style={styles.reviewedBadge}>
+              <Text style={styles.badgeText}>Reviewed</Text>
+            </View>
+          ) : threat.threat_status ? (
             <View style={styles.assignedBadge}>
               <Text style={styles.badgeText}>Assigned</Text>
             </View>
@@ -153,34 +161,99 @@ const AlertCard: React.FC<AlertCardProps> = ({
         </View>
       </View>
 
-      {/* Assigned Staff Section - Only show for assigned threats */}
-      {threat.threat_status && assignedEmployees && assignedEmployees.length > 0 && (
-        <View style={styles.assignedStaffSection}>
-          <Text style={styles.assignedStaffText}>
-            Assigned staff: {assignedEmployees.map((emp) => emp.user?.fullname).filter(Boolean).join(', ')}
-          </Text>
-        </View>
+      {/* Reviewed Section - Show report messages for reviewed tasks */}
+      {activeTab === 'reviewed' && task?.review_status && reportMessages && reportMessages.length > 0 && (
+        <>
+          {reportMessages.map((report, index) => {
+            const employee = assignedEmployees?.find((emp) => emp.user?.id === report.user_id);
+            const employeeName = employee?.user?.fullname || 'Unknown';
+            return (
+              <CartBox
+                key={index}
+                width="100%"
+                borderRadius={10}
+                borderWidth={0}
+                backgroundColor={colors.status_active}
+                paddingTop={8}
+                paddingBottom={8}
+                paddingRight={8}
+                paddingLeft={8}
+                marginBottom={8}
+                alignItems="flex-start">                
+                  <View>
+                    <Text style={styles.reviewedStaffText}>
+                      Assigned staff: {employeeName}
+                    </Text>
+                    <Text style={styles.reportMessageText}>
+                      Report: {report.message}
+                    </Text>
+                  </View>
+                  <View style={styles.reportCardContent}>
+                  <Text style={styles.reportTimeText}>
+                    {new Date(report.reviewed_time).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })}
+                  </Text>
+                  </View>
+                
+              </CartBox>
+            );
+          })}
+        </>
       )}
 
-      {/* Assign/Reassign Button */}
-      {threat.threat_status ? (
-        <Button1
-          text="Reassign"
-          onPress={() => onReassignPress(threat)}
-          backgroundColor={colors.secondary}
-          textStyle={styles.assignButtontext}
-          width="100%"
-          containerStyle={styles.assignButton}
-        />
-      ) : (
-        <Button1
-          text="Assign"
-          onPress={() => onAssignPress(threat)}
-          backgroundColor={colors.secondary}
-          textStyle={styles.assignButtontext}
-          width="100%"
-          containerStyle={styles.assignButton}
-        />
+      {/* Assigned Staff Section - Show individual cards for each assigned employee */}
+      {activeTab === 'assigned' && threat.threat_status && assignedEmployees && assignedEmployees.length > 0 && (
+        <>
+          {assignedEmployees.map((emp, index) => {
+            const employeeName = emp.user?.fullname || 'Unknown';
+            const employeeActive = emp.employeeActive;
+            return (
+              <CartBox
+                key={index}
+                width="100%"
+                height={32}
+                borderRadius={10}
+                borderWidth={0}
+                backgroundColor={colors.assigned_staff}
+                paddingTop={8}
+                paddingBottom={8}
+                paddingRight={8}
+                paddingLeft={8}
+                marginBottom={12}
+                alignItems="flex-start">
+                    <Text style={styles.assignedStaffCardName} ellipsizeMode="tail" numberOfLines={1}>
+                      Assigned staff: {employeeName}
+                    </Text>
+              </CartBox>
+            );
+          })}
+        </>
+      )}
+
+      {/* Assign/Reassign Button - Hide for reviewed tab */}
+      {activeTab !== 'reviewed' && (
+        threat.threat_status ? (
+          <Button1
+            text="Reassign"
+            onPress={() => onReassignPress(threat)}
+            backgroundColor={colors.secondary}
+            textStyle={styles.assignButtontext}
+            width="100%"
+            containerStyle={styles.assignButton}
+          />
+        ) : (
+          <Button1
+            text="Assign"
+            onPress={() => onAssignPress(threat)}
+            backgroundColor={colors.secondary}
+            textStyle={styles.assignButtontext}
+            width="100%"
+            containerStyle={styles.assignButton}
+          />
+        )
       )}
 
     </CartBox>
@@ -341,20 +414,19 @@ export default function AlertScreen() {
       }
     });
 
-    // Create new tasks for selected users
-    userIds.forEach((userId) => {
-      const newTask: Task = {
-        _id: `task${Date.now()}_${userId}`,
-        threat_id: threatId,
-        user_id: userId,
-        review_status: false,
-        createdat: new Date().toISOString(),
-        updatedat: new Date().toISOString(),
-      };
+    // Create a single task with all selected user_ids
+    const newTask: Task = {
+      _id: `task${Date.now()}_${threatId}`,
+      threat_id: threatId,
+      user_ids: userIds,
+      review_status: false,
+      report_message: null, // null when review_status is false
+      createdat: new Date().toISOString(),
+      updatedat: new Date().toISOString(),
+    };
 
-      // Add task to dummyTasks (in real app, this would be an API call)
-      dummyTasks.push(newTask);
-    });
+    // Add task to dummyTasks (in real app, this would be an API call)
+    dummyTasks.push(newTask);
 
     // Update threat status (in real app, this would be an API call)
     const threat = dummyThreats.find((t) => t._id === threatId);
@@ -372,7 +444,8 @@ export default function AlertScreen() {
   const handleReassignPress = (threat: Threat) => {
     // Get currently assigned employees for this threat
     const assignedTasks = findTasksByThreatId(threat._id);
-    const assignedUserIds = assignedTasks.map((task) => task.user_id);
+    // Flatten all user_ids from all tasks into a single array
+    const assignedUserIds = assignedTasks.flatMap((task) => task.user_ids);
     
     setSelectedThreat(threat);
     setAssignModalVisible(true);
@@ -453,10 +526,18 @@ export default function AlertScreen() {
             const camera = findCameraById(threat.camera_id);
             // Get assigned employees for this threat
             const assignedTasks = findTasksByThreatId(threat._id);
-            const assignedEmployees = assignedTasks.map((task) => {
-              const user = findUserById(task.user_id);
-              return { user };
+            // Flatten all user_ids from all tasks and get unique users
+            const allUserIds = assignedTasks.flatMap((task) => task.user_ids);
+            const uniqueUserIds = Array.from(new Set(allUserIds));
+            const assignedEmployees = uniqueUserIds.map((userId) => {
+              const user = findUserById(userId);
+              const employeeActive = findEmployeeActiveByUserId(userId);
+              return { user, employeeActive };
             });
+            
+            // Get task and report messages for reviewed tab
+            const task = assignedTasks.find((t) => t.review_status === true) || assignedTasks[0];
+            const reportMessages = task?.review_status && task?.report_message ? task.report_message : undefined;
             
             return (
               <AlertCard
@@ -465,6 +546,8 @@ export default function AlertScreen() {
                 camera={camera}
                 activeTab={activeTab}
                 assignedEmployees={assignedEmployees}
+                task={task}
+                reportMessages={reportMessages}
                 onAssignPress={handleAssignPress}
                 onReassignPress={handleReassignPress}
               />
@@ -482,7 +565,7 @@ export default function AlertScreen() {
         activeEmployees={activeEmployeesWithUsers}
         preSelectedUserIds={
           selectedThreat
-            ? findTasksByThreatId(selectedThreat._id).map((task) => task.user_id)
+            ? findTasksByThreatId(selectedThreat._id).flatMap((task) => task.user_ids)
             : []
         }
         onClose={() => {
@@ -513,6 +596,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16.5,
     marginHorizontal: 4,
+    height:39
   },
   tabButtonText: {
     fontSize: fonts.size.l,
@@ -610,7 +694,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   assignedBadge: {
-    backgroundColor: '#FF9500',
+    backgroundColor: colors.assigned_staff,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  reviewedBadge: {
+    backgroundColor: colors.status_active,
     paddingHorizontal: 5,
     paddingVertical: 3,
     borderRadius: 10,
@@ -669,15 +759,32 @@ const styles = StyleSheet.create({
     color: colors.primary,
     paddingVertical: 10,
   },
-  assignedStaffSection: {
-    width:"100%",
-    padding: 8,
-    marginBottom: 12,
-    backgroundColor: colors.assigned_staff,
-    borderRadius: 10,
-  },
-  assignedStaffText: {
+  assignedStaffCardName: {
     fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.secondary,
+    width:"100%",
+  },
+  reportCardContent: {
+    width: '100%',
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+  },
+  reviewedStaffText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.secondary,
+  },
+  reportMessageText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.secondary,
+  },
+  reportTimeText: {
+    fontSize: fonts.size.xs,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
     color: colors.secondary,
