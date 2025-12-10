@@ -8,7 +8,10 @@ import {
   ScrollView,
   Image,
   RefreshControl,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../../components/common/Header';
 import CartBox from '../../components/common/CartBox';
 import Footer from '../Footer';
@@ -196,13 +199,21 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <Header
-        center={{
-          type: 'text',
-          value: t.history,
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          center={{
+            type: 'text',
+            value: t.history,
+          }}
+        />
+      </SafeAreaView>
 
       <ScrollView 
         contentContainerStyle={styles.content} 
@@ -311,7 +322,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: 20,

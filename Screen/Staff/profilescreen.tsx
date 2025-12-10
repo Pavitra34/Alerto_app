@@ -11,7 +11,10 @@ import {
   Modal,
   Pressable,
   RefreshControl,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { findUserById } from '../../api/users';
 import { findUserByEmail, findUserByUsername } from '../../api/auth';
 import Header from '../../components/common/Header';
@@ -269,20 +272,28 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <Header
-        left={{
-          type: 'image',
-          url: require('../../assets/icons/arrow.png'),
-          width: 24,
-          height: 24,
-          onPress: handleBack,
-        }}
-        center={{
-          type: 'text',
-          value: t.profile,
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          left={{
+            type: 'image',
+            url: require('../../assets/icons/arrow.png'),
+            width: 24,
+            height: 24,
+            onPress: handleBack,
+          }}
+          center={{
+            type: 'text',
+            value: t.profile,
+          }}
+        />
+      </SafeAreaView>
 
       <ScrollView 
         contentContainerStyle={styles.content} 
@@ -689,7 +700,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: 20,
