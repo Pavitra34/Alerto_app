@@ -172,6 +172,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     padding: 0,
     margin: 0,
+    marginTop: -2,
     fontFamily: fonts.family.regular,
   },
   multilineInput: {

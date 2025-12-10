@@ -124,6 +124,7 @@ export const translations = {
     enterTheEmail: 'Enter the email',
     enterTheUsername: 'Enter the username',
     username: 'Username',
+    phoneNumberRequired: 'Phone number is required',
     
     // Admin Screen
     totalNVROnline: 'Total NVR Online',
@@ -291,6 +292,7 @@ export const translations = {
     enterTheEmail: 'Geben Sie die E-Mail ein',
     enterTheUsername: 'Geben Sie den Benutzernamen ein',
     username: 'Benutzername',
+    phoneNumberRequired: 'Telefonnummer ist erforderlich',
     
     // Admin Screen
     totalNVROnline: 'Gesamte NVR Online',
