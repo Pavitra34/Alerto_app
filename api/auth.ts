@@ -10,9 +10,9 @@ export interface AuthUser {
 export const dummyUsers: AuthUser[] = [
   {
     id: "1",
-    username: "danu",
+    username: "Danu",
     email: "danu@gmail.com",
-    password: "pass@123",
+    password: "Pass@123",
   },
   {
     id: "2",

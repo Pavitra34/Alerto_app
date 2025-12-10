@@ -7,7 +7,10 @@ import {
   ScrollView,
   Image,
   RefreshControl,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../../../components/common/Header';
 import Footer from '../../Footer';
 import { getAboutUsParagraphs } from '../../../api/support_legal';
@@ -39,20 +42,28 @@ export default function AboutScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <Header
-        left={{
-          type: 'image',
-          url: require('../../../assets/icons/arrow.png'),
-          width: 23,
-          height: 23,
-          onPress: handleBack,
-        }}
-        center={{
-          type: 'text',
-          value: 'About us',
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          left={{
+            type: 'image',
+            url: require('../../../assets/icons/arrow.png'),
+            width: 23,
+            height: 23,
+            onPress: handleBack,
+          }}
+          center={{
+            type: 'text',
+            value: 'About us',
+          }}
+        />
+      </SafeAreaView>
 
       <ScrollView 
         contentContainerStyle={styles.content} 
@@ -95,7 +106,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: 20,

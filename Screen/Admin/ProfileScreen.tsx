@@ -6,13 +6,17 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { findUserByEmail, findUserByUsername } from '../../api/auth';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
@@ -38,6 +42,7 @@ export default function ProfileScreen() {
   const [showEditEmailModal, setShowEditEmailModal] = useState<boolean>(false);
   const [editingFullname, setEditingFullname] = useState<string>('');
   const [editingEmail, setEditingEmail] = useState<string>('');
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const languages = [
     {
@@ -54,45 +59,57 @@ export default function ProfileScreen() {
     },
   ];
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const storedUserId = await AsyncStorage.getItem('userId') || '';
-        setUserId(storedUserId);
+  const loadUserData = async () => {
+    try {
+      const storedUserId = await AsyncStorage.getItem('userId') || '';
+      setUserId(storedUserId);
 
 
-        const userObjString = await AsyncStorage.getItem('userObj');
-        if (userObjString) {
-          const userObj = JSON.parse(userObjString);
-          if (userObj.email) {
-            const authUser = findUserByEmail(userObj.email) || findUserByUsername(userObj.email);
-            if (authUser) {
-              setEmail(authUser.email);
-            }
-          }
-          if (userObj.fullname) {
-            setFullname(userObj.fullname);
+      const userObjString = await AsyncStorage.getItem('userObj');
+      if (userObjString) {
+        const userObj = JSON.parse(userObjString);
+        if (userObj.email) {
+          const authUser = findUserByEmail(userObj.email) || findUserByUsername(userObj.email);
+          if (authUser) {
+            setEmail(authUser.email);
           }
         }
-
-        // Load selected language
-        const storedLangId = await AsyncStorage.getItem('langId') || 'en';
-        const langId = storedLangId === 'de' ? 'deutsch' : 'english';
-        setSelectedLanguage(langId);
-
-        // Load selected avatar image URI
-        const storedAvatarUri = await AsyncStorage.getItem('avatarImageUri');
-        if (storedAvatarUri) {
-          setAvatarUri(storedAvatarUri);
-          console.log('Loaded avatar from storage:', storedAvatarUri);
+        if (userObj.fullname) {
+          setFullname(userObj.fullname);
         }
-      } catch (error) {
-        console.error('Error loading profile data:', error);
       }
-    };
 
+      // Load selected language
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      const langId = storedLangId === 'de' ? 'deutsch' : 'english';
+      setSelectedLanguage(langId);
+
+      // Load selected avatar image URI
+      const storedAvatarUri = await AsyncStorage.getItem('avatarImageUri');
+      if (storedAvatarUri) {
+        setAvatarUri(storedAvatarUri);
+        console.log('Loaded avatar from storage:', storedAvatarUri);
+      }
+    } catch (error) {
+      console.error('Error loading profile data:', error);
+    }
+  };
+
+  useEffect(() => {
     loadUserData();
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadUserData();
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleBack = async () => {
     try {
@@ -301,15 +318,33 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <Header
-        center={{
-          type: 'text',
-          value: 'Profile',
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          center={{
+            type: 'text',
+            value: 'Profile',
+          }}
+        />
+      </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }>
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
@@ -676,7 +711,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: 20,

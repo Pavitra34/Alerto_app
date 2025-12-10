@@ -20,14 +20,35 @@ export const dummyEmployeeActive: EmployeeActive[] = [
   {
     _id: "emp_active002",
     user_id: "2",
+    active_status: false,
+    createdat: "2025-12-09T09:15:00.000Z",
+    updatedat: "2025-12-09T09:15:00.000Z",
+  },
+  {
+    _id: "emp_active002",
+    user_id: "2",
     active_status: true,
-    createdat: "2024-12-20T09:15:00.000Z",
-    updatedat: "2024-12-20T15:45:00.000Z",
+    createdat: "2025-12-10T09:15:00.000Z",
+    updatedat: "2025-12-10T09:15:00.000Z",
   },
   {
     _id: "emp_active003",
     user_id: "5", // David Brown
     active_status: true,
+    createdat: "2024-12-20T07:30:00.000Z",
+    updatedat: "2024-12-20T12:00:00.000Z",
+  },
+  {
+    _id: "emp_active004",
+    user_id: "7",
+    active_status: true,
+    createdat: "2024-12-20T07:30:00.000Z",
+    updatedat: "2024-12-20T12:00:00.000Z",
+  },
+  {
+    _id: "emp_active005",
+    user_id: "9",
+    active_status: false,
     createdat: "2024-12-20T07:30:00.000Z",
     updatedat: "2024-12-20T12:00:00.000Z",
   },

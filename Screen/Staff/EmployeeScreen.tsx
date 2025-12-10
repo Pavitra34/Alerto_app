@@ -12,7 +12,10 @@ import {
   Pressable,
   TextInput,
   RefreshControl,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { findTasksByUserId } from '../../api/Tasks';
 import { findThreatById, findThreatsByType } from '../../api/Threat';
 import { findCameraById } from '../../api/Camera';
@@ -368,20 +371,28 @@ export default function EmployeeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <Header
-        center={{
-          type: 'text',
-          value: (showConfirmPopup || showConfirmInactivePopup) ? t.headerTitlePopup : t.headerTitle,
-        }}
-        right={{
-          type: 'image',
-          url: require('../../assets/icons/notification.png'),
-          width: 24,
-          height: 24,
-          onPress: handleNotificationPress,
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          center={{
+            type: 'text',
+            value: (showConfirmPopup || showConfirmInactivePopup) ? t.headerTitlePopup : t.headerTitle,
+          }}
+          right={{
+            type: 'image',
+            url: require('../../assets/icons/notification.png'),
+            width: 24,
+            height: 24,
+            onPress: handleNotificationPress,
+          }}
+        />
+      </SafeAreaView>
 
       <ScrollView 
         contentContainerStyle={styles.content} 
@@ -837,7 +848,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop: 20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: 20,
