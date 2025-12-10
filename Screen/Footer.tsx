@@ -2,11 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
   Image,
   Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../styles/Colors';
@@ -148,8 +148,8 @@ const styles = StyleSheet.create({
     height: 50,
   },
   navIcon: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     tintColor: colors.footer_inactive,
   },
   navIconActive: {

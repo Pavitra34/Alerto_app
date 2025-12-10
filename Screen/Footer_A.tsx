@@ -3,10 +3,12 @@ import { useRouter, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Image,
+  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../styles/Colors';
 
 interface Footer_AProps {
@@ -16,6 +18,7 @@ interface Footer_AProps {
 export default function Footer_A({ onNavigate }: Footer_AProps) {
   const router = useRouter();
   const segments = useSegments();
+  const insets = useSafeAreaInsets();
   const [langId, setLangId] = useState<string>('en');
   const [userId, setUserId] = useState<string>('');
   const [activeRoute, setActiveRoute] = useState<string>('/admin');
@@ -84,7 +87,7 @@ export default function Footer_A({ onNavigate }: Footer_AProps) {
   };
 
   return (
-    <View style={styles.footer}>
+    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <TouchableOpacity
         style={styles.navItem}
         onPress={() => handleNavigation('/admin')}>
@@ -167,8 +170,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 15,
-    paddingBottom: 30,
+    paddingTop: 5,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 15,
     backgroundColor: colors.secondary,
     borderTopWidth: 1,
     borderTopColor: colors.border,
