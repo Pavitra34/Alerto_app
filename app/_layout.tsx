@@ -54,6 +54,7 @@ export default function RootLayout() {
         <Stack.Screen name="termsofservice" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="privacypolicy" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="adduser" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="user-profile" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

@@ -1,31 +1,31 @@
-import React, { useState, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Image,
-  Platform,
-  StatusBar,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTranslations } from '../../assets/Translation';
+import { Button1 } from '../../components/common/Button';
+import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
-import CartBox from '../../components/common/CartBox';
-import { Button1 } from '../../components/common/Button';
-import Footer_A from '../Footer_A';
 import colors from '../../styles/Colors';
+import Footer_A from '../Footer_A';
 // @ts-ignore
-import fonts from '../../styles/Fonts';
-import { dummyUsers, User } from '../../api/users';
 import { dummyEmployeeActive } from '../../api/Employee_active';
+import { dummyUsers, User } from '../../api/users';
+import fonts from '../../styles/Fonts';
 
 interface UserWithStatus extends User {
   activeStatus: boolean | null; // null if no active status found
@@ -64,22 +64,22 @@ export default function UsersScreen() {
   const usersWithStatus: UserWithStatus[] = useMemo(() => {
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Filter only employees (not admin or superadmin)
     const employees = dummyUsers.filter((user) => user.role === 'employee');
-    
+
     return employees.map((user) => {
       // Find all active status entries for this user
       const allActiveStatuses = dummyEmployeeActive.filter(
         (emp) => emp.user_id === user.id
       );
-      
+
       // Find the entry that matches today's date
       const todayActiveStatus = allActiveStatuses.find((emp) => {
         const empDate = new Date(emp.updatedat).toISOString().split('T')[0];
         return empDate === today;
       });
-      
+
       return {
         ...user,
         activeStatus: todayActiveStatus ? todayActiveStatus.active_status : null,
@@ -90,14 +90,14 @@ export default function UsersScreen() {
   // Filter users based on search query and status
   const filteredUsers = useMemo(() => {
     let filtered = usersWithStatus;
-    
+
     // Filter by status
     if (selectedStatus === 'active') {
       filtered = filtered.filter((user) => user.activeStatus === true);
     } else if (selectedStatus === 'inactive') {
       filtered = filtered.filter((user) => user.activeStatus === false || user.activeStatus === null);
     }
-    
+
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -107,7 +107,7 @@ export default function UsersScreen() {
           user.email.toLowerCase().includes(query)
       );
     }
-    
+
     return filtered;
   }, [usersWithStatus, searchQuery, selectedStatus]);
 
@@ -161,9 +161,9 @@ export default function UsersScreen() {
 
   const getStatusColor = (activeStatus: boolean | null): string => {
     if (activeStatus === true) {
-      return '#0DBEA0'; // Green for Active
+      return colors.status_active; // Green for Active
     } else {
-      return '#FF0000'; // Red for Inactive (both false and null)
+      return colors.live_badge; // Red for Inactive (both false and null)
     }
   };
 
@@ -199,7 +199,7 @@ export default function UsersScreen() {
           }}
         />
       </SafeAreaView>
-      
+
       <View style={styles.searchBarContainer}>
         <SearchBar
           placeholder={t.searchByName}
@@ -218,7 +218,7 @@ export default function UsersScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[
           styles.content,
           { paddingBottom: insets.bottom + 100 }
@@ -233,27 +233,42 @@ export default function UsersScreen() {
           />
         }>
         {filteredUsers.map((user) => (
-          <View key={user.id} style={styles.userItemWrapper}>
+          <TouchableOpacity
+            key={user.id}
+            activeOpacity={0.7}
+            onPress={() => {
+              // Ensure activeStatus is properly passed as string ('true' or 'false')
+              const activeStatusValue = user.activeStatus === true ? 'true' : 'false';
+              router.push({
+                pathname: '/user-profile' as any,
+                params: {
+                  userId: user.id,
+                  activeStatus: activeStatusValue,
+                },
+              } as any);
+            }}>
             <CartBox
               width="100%"
               height={60}
               borderRadius={12}
               borderWidth={1}
+              marginBottom={12}
               borderColor={colors.border}>
+
               <View style={styles.userItem}>
               <View style={styles.avatarContainer}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{getInitials(user.fullname)}</Text>
                 </View>
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>{user.fullname}</Text>
-                <Text 
-                  style={styles.userEmail}
-                  numberOfLines={1}
-                  ellipsizeMode="tail">
-                  {user.email}
-                </Text>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{user.fullname}</Text>
+                  <Text
+                    style={styles.userEmail}
+                    numberOfLines={1}
+                    ellipsizeMode="tail">
+                    {user.email}
+                  </Text>
+                </View>
               </View>
               <View
                 style={[
@@ -266,7 +281,7 @@ export default function UsersScreen() {
               </View>
             </View>
           </CartBox>
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 
@@ -276,16 +291,16 @@ export default function UsersScreen() {
         transparent={true}
         animationType="slide"
         onRequestClose={handleCloseFilterModal}>
-        <Pressable 
+        <Pressable
           style={styles.modalOverlay}
           onPress={handleCloseFilterModal}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             {/* Drag Handle */}
             <View style={styles.dragHandle} />
-            
+
             {/* Title */}
             <Text style={styles.modalTitle}>{t.status}</Text>
-            
+
             {/* Status Options */}
             <View style={styles.statusOptions}>
               <TouchableOpacity
@@ -302,7 +317,7 @@ export default function UsersScreen() {
                   {t.active}
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
                   styles.statusOption,
@@ -318,7 +333,7 @@ export default function UsersScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-            
+
             {/* Select Button */}
             <Button1
               text={t.select}
@@ -366,9 +381,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 12,
-    marginBottom:20
+    marginTop: 20,
+    gap: 8,
+    marginBottom: 20
   },
   filterButton: {
     width: 40,
@@ -379,71 +394,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterIcon: {
-    width: 18,
-    height: 18,
+    width: 16,
+    height: 16,
     tintColor: colors.secondary,
   },
   content: {
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  userItemWrapper: {
-    marginBottom: 12,
-  },
   userItem: {
+    width: "100%",
     flexDirection: 'row',
     alignItems: 'center',
-    height: '100%',
-    paddingLeft: 8
-    ,
-    paddingRight: 16,
+    justifyContent: "space-between",
+    paddingHorizontal:12,
   },
   avatarContainer: {
-    marginRight: 8,
-    
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 25,
-    backgroundColor: '#7D8FAB',
+    backgroundColor: colors.button_text,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight:8,
   },
   avatarText: {
-    fontSize: 14,
-    fontFamily: fonts.family.medium,
-    fontWeight: fonts.weight.medium,
+    fontSize: fonts.size.s,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
     color: colors.secondary,
   },
   userInfo: {
-    flex: 1,
-    maxWidth: '50%',
-    marginRight: 12,
-    minWidth: 0,
+    maxWidth:"90%"
   },
   userName: {
-    fontSize: 14,
-    fontFamily: fonts.family.medium,
-    fontWeight: fonts.weight.medium,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 12,
+    fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
-    color: colors.subtext2,
-    maxWidth: '100%',
+    color: colors.text,
+    marginBottom: 6,
+    maxWidth: '80%',
+  },
+  userEmail: {
+    fontSize: fonts.size.s,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.subtext,
+    maxWidth: '80%',
+    minWidth:150,
+    width:"100%",
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    minWidth: 51,
+    paddingHorizontal: 5,
+    paddingVertical: 5.5,
+    borderRadius: 10,
     alignItems: 'center',
-    flexShrink: 0,
-    marginLeft: 20,
   },
   statusText: {
     fontSize: 12,
@@ -491,7 +500,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    
+
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -535,7 +544,7 @@ const styles = StyleSheet.create({
   },
   statusOptionSelected: {
     borderColor: colors.primary,
-    
+
   },
   statusOptionText: {
     fontSize: 14,

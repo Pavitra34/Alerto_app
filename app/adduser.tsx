@@ -1,4 +1,4 @@
-import AddUserScreen from '../Screen/Admin/more/AddUserScreen';
+import AddUserScreen from '../Screen/Admin/More/AddUserScreen';
 
 export default AddUserScreen;
 

@@ -155,6 +155,19 @@ export const translations = {
     searchByName: 'Search by name',
     status: 'Status',
     
+    // User Profile Screen
+    usersProfile: 'Users profile',
+    staffName: 'Staff name',
+    deleteStaff: 'Delete staff',
+    deleteStaffRecord: 'Delete Staff Record',
+    deleteStaffMessage: 'Are you sure you want to permanently delete this user record? This action cannot be undone.',
+    mail: 'Mail',
+    call: 'Call',
+    editUsername: 'Edit Username',
+    editPhoneNumber: 'Edit Phone number',
+    enterYourUsername: 'Enter your username',
+    enterYourPhoneNumber: 'Enter your phone number',
+    
     // Profile Screen (Admin)
     personalInformation: 'Personal Information',
     preferences: 'Preferences',
@@ -321,6 +334,19 @@ export const translations = {
     users: 'Benutzer',
     searchByName: 'Suche nach Name',
     status: 'Status',
+    
+    // User Profile Screen
+    usersProfile: 'Benutzerprofil',
+    staffName: 'Mitarbeitername',
+    deleteStaff: 'Mitarbeiter löschen',
+    deleteStaffRecord: 'Mitarbeiterdatensatz löschen',
+    deleteStaffMessage: 'Sind Sie sicher, dass Sie diesen Benutzerdatensatz dauerhaft löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.',
+    mail: 'E-Mail',
+    call: 'Anrufen',
+    editUsername: 'Benutzernamen bearbeiten',
+    editPhoneNumber: 'Telefonnummer bearbeiten',
+    enterYourUsername: 'Geben Sie Ihren Benutzernamen ein',
+    enterYourPhoneNumber: 'Geben Sie Ihre Telefonnummer ein',
     
     // Profile Screen (Admin)
     personalInformation: 'Persönliche Informationen',
