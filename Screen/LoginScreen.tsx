@@ -275,7 +275,7 @@ export default function LoginScreen() {
             <InputBox
               label={t.password}
               placeholder={t.passwordPlaceholder}
-              //secureTextEntry={!showPassword}
+              secureTextEntry={!showPassword}
               value={password}
               setValue={handlePasswordChange}
               errorMessage={passwordError}
