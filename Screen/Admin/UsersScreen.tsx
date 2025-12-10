@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
@@ -9,13 +9,11 @@ import {
   Image,
   Platform,
   StatusBar,
-  Animated,
-  PanResponder,
-  Dimensions,
   Modal,
   Pressable,
   RefreshControl,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTranslations } from '../../assets/Translation';
 import Header from '../../components/common/Header';
@@ -33,9 +31,8 @@ interface UserWithStatus extends User {
   activeStatus: boolean | null; // null if no active status found
 }
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 export default function UsersScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<'active' | 'inactive' | null>(null);
@@ -62,14 +59,6 @@ export default function UsersScreen() {
 
     return () => clearInterval(interval);
   }, []);
-  
-  // Default FAB position
-  const defaultFabPosition = { x: SCREEN_WIDTH - 100, y: SCREEN_HEIGHT - 140 };
-  
-  // FAB position state
-  const pan = useRef(new Animated.ValueXY()).current;
-  const [fabPosition, setFabPosition] = useState(defaultFabPosition);
-  const panStart = useRef({ x: 0, y: 0 });
 
   // Combine users with their active status (only employees, current date only)
   const usersWithStatus: UserWithStatus[] = useMemo(() => {
@@ -147,8 +136,7 @@ export default function UsersScreen() {
   };
 
   const handleAddUser = () => {
-    console.log('Add user pressed');
-    // Add user functionality here
+    router.push('/adduser' as any);
   };
 
   const onRefresh = async () => {
@@ -162,59 +150,6 @@ export default function UsersScreen() {
       setRefreshing(false);
     }
   };
-
-  // PanResponder for dragging FAB - smoother implementation
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        panStart.current = { x: fabPosition.x, y: fabPosition.y };
-        // Reset pan values for smooth start
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        // Direct smooth movement without bounds checking during drag
-        pan.setValue({
-          x: gestureState.dx,
-          y: gestureState.dy,
-        });
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        const newX = panStart.current.x + gestureState.dx;
-        const newY = panStart.current.y + gestureState.dy;
-        
-        // Keep FAB within screen bounds
-        const maxX = SCREEN_WIDTH - 60;
-        const maxY = SCREEN_HEIGHT - 170;
-        const minX = 0;
-        const minY = 100;
-        
-        const boundedX = Math.max(minX, Math.min(maxX, newX));
-        const boundedY = Math.max(minY, Math.min(maxY, newY));
-        
-        // Animate to final position smoothly
-        Animated.spring(pan, {
-          toValue: { 
-            x: boundedX - fabPosition.x, 
-            y: boundedY - fabPosition.y 
-          },
-          useNativeDriver: false,
-          tension: 50,
-          friction: 7,
-        }).start(() => {
-          setFabPosition({ x: boundedX, y: boundedY });
-          pan.setValue({ x: 0, y: 0 });
-        });
-      },
-    })
-  ).current;
-
-  // Reset FAB position to default on mount (refresh)
-  useEffect(() => {
-    setFabPosition(defaultFabPosition);
-    pan.setValue({ x: 0, y: 0 });
-  }, []);
 
   const getInitials = (name: string): string => {
     const names = name.split(' ');
@@ -399,19 +334,7 @@ export default function UsersScreen() {
       </Modal>
 
       {/* Floating Action Button */}
-      <Animated.View
-        style={[
-          styles.fab,
-          {
-            left: fabPosition.x,
-            bottom: SCREEN_HEIGHT - fabPosition.y,
-            transform: [
-              { translateX: pan.x },
-              { translateY: pan.y },
-            ],
-          },
-        ]}
-        {...panResponder.panHandlers}>
+      <View style={styles.fab}>
         <TouchableOpacity
           onPress={handleAddUser}
           activeOpacity={0.8}
@@ -422,7 +345,7 @@ export default function UsersScreen() {
             resizeMode="contain"
           />
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       <SafeAreaView edges={['bottom']} style={styles.footerWrapper}>
         <Footer_A />
@@ -530,6 +453,8 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
+    right: 20,
+    bottom: 140,
     width: 60,
     height: 60,
     borderRadius: 28,

@@ -116,6 +116,15 @@ export const translations = {
     avatarAddedSuccessfully: 'Avatar added successfully',
     avatarRemovedSuccessfully: 'Avatar removed successfully',
     
+    // Add User Screen
+    addUsers: 'Add users',
+    addNewUser: 'Add new user',
+    createAccountCredentials: 'Create account credentials for a new staff.',
+    enterTheFullname: 'Enter the Fullname',
+    enterTheEmail: 'Enter the email',
+    enterTheUsername: 'Enter the username',
+    username: 'Username',
+    
     // Admin Screen
     totalNVROnline: 'Total NVR Online',
     cameraOnline: 'Camera online',
@@ -131,7 +140,6 @@ export const translations = {
     unknownCamera: 'Unknown Camera',
     unknownLocation: 'Unknown Location',
     assignedStaff: 'Assigned staff:',
-    report: 'Report:',
     reassign: 'Reassign',
     assign: 'Assign',
     assignStaff: 'Assign staff',
@@ -274,6 +282,15 @@ export const translations = {
     save: 'Speichern',
     avatarAddedSuccessfully: 'Avatar erfolgreich hinzugefügt',
     avatarRemovedSuccessfully: 'Avatar erfolgreich entfernt',
+    
+    // Add User Screen
+    addUsers: 'Benutzer hinzufügen',
+    addNewUser: 'Neuen Benutzer hinzufügen',
+    createAccountCredentials: 'Kontozugangsdaten für einen neuen Mitarbeiter erstellen.',
+    enterTheFullname: 'Geben Sie den vollständigen Namen ein',
+    enterTheEmail: 'Geben Sie die E-Mail ein',
+    enterTheUsername: 'Geben Sie den Benutzernamen ein',
+    username: 'Benutzername',
     
     // Admin Screen
     totalNVROnline: 'Gesamte NVR Online',
