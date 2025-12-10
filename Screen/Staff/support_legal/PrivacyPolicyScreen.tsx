@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Image,
+  RefreshControl,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import { GroupedContactList } from '../../../components/common/Contact';
@@ -17,11 +18,25 @@ import fonts from '../../../styles/Fonts';
 
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const introduction = getPrivacyPolicyIntroduction();
   const sections = getPrivacyPolicySections();
 
   const handleBack = () => {
     router.back();
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Reload content - data is already loaded from function
+      // This is mainly for UI refresh
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Contact data
@@ -69,6 +84,14 @@ export default function PrivacyPolicyScreen() {
       <ScrollView 
         contentContainerStyle={styles.content} 
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* App Logo and Name */}
         <View style={styles.logoSection}>

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  RefreshControl,
 } from 'react-native';
 import Header from '../../components/common/Header';
 import CartBox from '../../components/common/CartBox';
@@ -14,6 +15,7 @@ import Footer from '../Footer';
 import colors from '../../styles/Colors';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
+import { getTranslations } from '../../assets/Translation';
 
 interface AlertResponse {
   id: string;
@@ -22,6 +24,7 @@ interface AlertResponse {
   taskId: string;
   threatId: string;
   threatType: string;
+  threatLevel?: string; // Optional for backward compatibility
   cameraId: string;
   cameraName: string;
   cameraLocation: string;
@@ -36,9 +39,11 @@ interface AlertResponse {
 
 export default function HistoryScreen() {
   const params = useLocalSearchParams();
-  const [langId, setLangId] = useState<string>('');
+  const [langId, setLangId] = useState<string>('en');
   const [userId, setUserId] = useState<string>('');
   const [alertHistory, setAlertHistory] = useState<AlertResponse[]>([]);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [t, setT] = useState(getTranslations('en'));
 
   useEffect(() => {
     // Get params or load from AsyncStorage
@@ -49,6 +54,7 @@ export default function HistoryScreen() {
         
         setLangId(storedLangId);
         setUserId(storedUserId);
+        setT(getTranslations(storedLangId));
         
         // Load alert history only if userId is available
         if (storedUserId) {
@@ -116,9 +122,65 @@ export default function HistoryScreen() {
     refreshHistory();
   }, [userId]);
 
+  // Update translations when langId changes
+  useEffect(() => {
+    setT(getTranslations(langId));
+  }, [langId]);
+
+  const loadHistory = async () => {
+    try {
+      if (!userId) return;
+      
+      const historyData = await AsyncStorage.getItem('alertHistory');
+      if (historyData) {
+        const history: AlertResponse[] = JSON.parse(historyData);
+        const userHistory = history.filter(h => h.userId === userId);
+        
+        // Filter to show only today's history
+        const today = new Date();
+        const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        const todayHistory = userHistory.filter(h => {
+          // Check if responseDate matches today (handle both old and new format)
+          const responseDate = h.responseDate || new Date(h.threatCreatedAt).toISOString().split('T')[0];
+          return responseDate === todayDateString;
+        });
+        
+        setAlertHistory(todayHistory);
+      } else {
+        setAlertHistory([]);
+      }
+    } catch (error) {
+      console.error('Error loading history:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadHistory();
+    } catch (error) {
+      console.error('Error refreshing history:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleNotificationPress = () => {
     console.log('Notification pressed');
     // Add notification navigation logic here
+  };
+
+  const getThreatLevelColor = (threatLevel?: string): string => {
+    const level = threatLevel?.toLowerCase() || '';
+    if (level === 'high') {
+      return '#FF3B30'; // Red
+    } else if (level === 'medium') {
+      return '#FF9800'; // Orange
+    } else if (level === 'low') {
+      return '#4CAF50'; // Green
+    }
+    return '#FF3B30'; // Default to red
   };
 
   const formatThreatDate = (dateString: string) => {
@@ -138,15 +200,26 @@ export default function HistoryScreen() {
       <Header
         center={{
           type: 'text',
-          value: 'History',
+          value: t.history,
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         
         {alertHistory.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No history available</Text>
+            <Text style={styles.emptyText}>{t.noHistoryAvailable}</Text>
           </View>
         ) : (
           alertHistory.map((response) => (
@@ -201,22 +274,24 @@ export default function HistoryScreen() {
                 {/* Video Thumbnail */}
                 <View style={styles.videoContainer}>
                   <View style={styles.videoThumbnail}>
-                    <Text style={styles.videoPlaceholder}>Video Thumbnail</Text>
+                    <Text style={styles.videoPlaceholder}>{t.videoThumbnail}</Text>
                   </View>
                   <View style={styles.playIconContainer}>
                     <Text style={styles.playIcon}>▶</Text>
                   </View>
                   {/* Threat Level Badge */}
-                  <View style={styles.threatLevelBadge}>
-                    <Text style={styles.threatLevelText}>High</Text>
+                  <View style={[styles.threatLevelBadge, { backgroundColor: getThreatLevelColor(response.threatLevel) }]}>
+                    <Text style={styles.threatLevelText}>
+                      {response.threatLevel || 'High'}
+                    </Text>
                   </View>
                 </View>
 
                 {/* Action Report Section */}
                 <View style={styles.actionReportContainer}>
                   <View style={styles.actionReportLeft}>
-                    <Text style={styles.actionReportLabel}>Your action: {response.alertType === 'true' ? 'True Alert' : 'False Alert'}</Text>
-                    <Text style={styles.actionReportText}>Report: {response.fullResponse}</Text>
+                    <Text style={styles.actionReportLabel}>{t.yourAction} {response.alertType === 'true' ? t.trueAlertLabel : t.falseAlertLabel}</Text>
+                    <Text style={styles.actionReportText}>{t.report} {response.fullResponse}</Text>
                   </View>
                   <Text style={styles.actionReportTime}>{response.responseTime}</Text>
                 </View>
@@ -379,16 +454,28 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: '#FF3B30',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
+    zIndex: 10,
+    minWidth: 50,
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   threatLevelText: {
-    fontSize: 12,
-    fontFamily: fonts.family.bold,
-    fontWeight: 500,
-    color: colors.secondary,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   actionReportContainer: {
     backgroundColor: '#6B7280',
