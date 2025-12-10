@@ -15,7 +15,7 @@ export const dummyThreats: Threat[] = [
   {
     _id: "threat001",
     camera_id: "cam001", // Main Entrance Camera
-    threat_type: "intruder",
+    threat_type: "Intruder",
     threat_level: "High",
     threat_status: true, // assigned
     createdat: "2024-12-20T10:30:00.000Z",
@@ -33,7 +33,7 @@ export const dummyThreats: Threat[] = [
   {
     _id: "threat003",
     camera_id: "cam003", // Warehouse Security Camera
-    threat_type: "fire",
+    threat_type: "Fire",
     threat_level: "High",
     threat_status: true, // assigned
     createdat: "2024-12-20T13:45:00.000Z",
@@ -42,7 +42,7 @@ export const dummyThreats: Threat[] = [
   {
     _id: "threat004",
     camera_id: "cam001", // Main Entrance Camera
-    threat_type: "motion",
+    threat_type: "Motion",
     threat_level: "Low",
     threat_status: false, // unassigned
     createdat: "2024-12-20T14:20:00.000Z",
@@ -51,7 +51,7 @@ export const dummyThreats: Threat[] = [
   {
     _id: "threat005",
     camera_id: "cam002", // Parking Lot Camera
-    threat_type: "intruder",
+    threat_type: "Intruder",
     threat_level: "Medium",
     threat_status: true, // assigned
     createdat: "2024-12-20T15:10:00.000Z",

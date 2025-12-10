@@ -11,6 +11,7 @@ import {
   Modal,
   Pressable,
   TextInput,
+  RefreshControl,
 } from 'react-native';
 import { findTasksByUserId } from '../../api/Tasks';
 import { findThreatById, findThreatsByType } from '../../api/Threat';
@@ -24,11 +25,13 @@ import Footer from '../Footer';
 import colors from '../../styles/Colors';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
+import { getTranslations } from '../../assets/Translation';
 
 interface TaskWithThreat {
   taskId: string;
   threatId: string;
   threatType: string;
+  threatLevel: string;
   cameraId: string;
   cameraName: string;
   cameraLocation: string;
@@ -44,6 +47,7 @@ interface AlertResponse {
   taskId: string;
   threatId: string;
   threatType: string;
+  threatLevel?: string; // Optional for backward compatibility
   cameraId: string;
   cameraName: string;
   cameraLocation: string;
@@ -65,6 +69,8 @@ export default function EmployeeScreen() {
   const [showConfirmPopup, setShowConfirmPopup] = useState<boolean>(false);
   const [showConfirmInactivePopup, setShowConfirmInactivePopup] = useState<boolean>(false);
   const [userTasks, setUserTasks] = useState<TaskWithThreat[]>([]);
+  const [allTasksResponded, setAllTasksResponded] = useState<boolean>(false);
+  const [allAssignedTasks, setAllAssignedTasks] = useState<TaskWithThreat[]>([]); // Track all assigned tasks
   const hasShownLoginToast = useRef<boolean>(false);
   const [showAlertResponseModal, setShowAlertResponseModal] = useState<boolean>(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -72,18 +78,12 @@ export default function EmployeeScreen() {
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [customInput, setCustomInput] = useState<string>('');
   const [showSendReportPopup, setShowSendReportPopup] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [langId, setLangId] = useState<string>('en');
+  const [t, setT] = useState(getTranslations('en'));
 
+  // Load user data and active status on mount and when screen is focused
   useEffect(() => {
-    // Check if we should show login success toast (only once per session)
-    // Only show if params has showLoginSuccess and we haven't shown it yet
-    if (params.showLoginSuccess === 'true' && !hasShownLoginToast.current) {
-      // Use setTimeout to ensure it shows after screen is fully loaded
-      setTimeout(() => {
-        showSuccessToast('Login successful!');
-        hasShownLoginToast.current = true;
-      }, 500);
-    }
-
     // Get user data from AsyncStorage
     const loadUserData = async () => {
       try {
@@ -94,6 +94,34 @@ export default function EmployeeScreen() {
         if (userObjString) {
           const userObj = JSON.parse(userObjString);
           setUserName(userObj.fullname || userObj.username || 'Employee');
+        }
+        
+        // Load language
+        const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+        setLangId(storedLangId);
+        const translations = getTranslations(storedLangId);
+        setT(translations);
+        
+        // Load active status from AsyncStorage
+        const activeStatusData = await AsyncStorage.getItem('userActiveStatus');
+        if (activeStatusData) {
+          const { isActive: storedIsActive, date: storedDate } = JSON.parse(activeStatusData);
+          // Get today's date in YYYY-MM-DD format
+          const today = new Date().toISOString().split('T')[0];
+          // If stored date is today, restore active status
+          if (storedDate === today && storedIsActive) {
+            setIsActive(true);
+            // Load tasks if user is active (pass userId directly to avoid state timing issues)
+            if (storedUserId) {
+              setTimeout(() => loadUserTasks(storedUserId), 100);
+            }
+          } else {
+            // If date is different, reset to inactive
+            setIsActive(false);
+            await AsyncStorage.removeItem('userActiveStatus');
+          }
+        } else {
+          setIsActive(false);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -111,7 +139,23 @@ export default function EmployeeScreen() {
     setCurrentDate(date.toLocaleDateString('en-US', options));
 
     loadUserData();
-  }, [params.showLoginSuccess]); // Only depend on showLoginSuccess param
+  }, []); // Run on mount and when component remounts
+
+  // Handle login success toast separately
+  useEffect(() => {
+    if (params.showLoginSuccess === 'true' && !hasShownLoginToast.current && t) {
+      // Use setTimeout to ensure it shows after screen is fully loaded
+      setTimeout(() => {
+        showSuccessToast(t.loginSuccessful);
+        hasShownLoginToast.current = true;
+      }, 500);
+    }
+  }, [params.showLoginSuccess, t]); // Depend on showLoginSuccess and translations
+
+  // Update translations when langId changes
+  useEffect(() => {
+    setT(getTranslations(langId));
+  }, [langId]);
 
   const handleGoActive = () => {
     if (isActive) {
@@ -123,25 +167,38 @@ export default function EmployeeScreen() {
     }
   };
 
-  const loadUserTasks = async () => {
+  const loadUserTasks = async (userIdParam?: string) => {
     try {
-      if (!userId) return;
+      const currentUserId = userIdParam || userId;
+      if (!currentUserId) return;
       
       // Get tasks assigned to this user
-      const tasks = findTasksByUserId(userId);
+      const tasks = findTasksByUserId(currentUserId);
+      console.log('Found tasks for user:', currentUserId, tasks);
       
       // For each task, get threat and camera details
       const tasksWithDetails: TaskWithThreat[] = tasks.map(task => {
         const threat = findThreatById(task.threat_id);
-        if (!threat) return null;
+        console.log('Looking for threat:', task.threat_id, 'Found:', threat);
+        if (!threat) {
+          console.warn('Threat not found for task:', task._id, 'threat_id:', task.threat_id);
+          return null;
+        }
         
         const camera = findCameraById(threat.camera_id);
-        if (!camera) return null;
+        if (!camera) {
+          console.warn('Camera not found for threat:', threat._id, 'camera_id:', threat.camera_id);
+          return null;
+        }
+        
+        const threatLevel = threat.threat_level || 'N/A';
+        console.log('Threat level for', threat._id, ':', threatLevel);
         
         return {
           taskId: task._id,
           threatId: threat._id,
           threatType: threat.threat_type,
+          threatLevel: threatLevel,
           cameraId: camera._id,
           cameraName: camera.name, // Get directly from Camera.ts
           cameraLocation: camera.location, // Get directly from Camera.ts
@@ -151,17 +208,118 @@ export default function EmployeeScreen() {
         };
       }).filter((task): task is TaskWithThreat => task !== null);
       
-      setUserTasks(tasksWithDetails);
-      console.log('Loaded user tasks:', tasksWithDetails);
+      // Store all assigned tasks (before filtering out responded ones)
+      setAllAssignedTasks(tasksWithDetails);
+      
+      // Check if all tasks have been responded to (using all assigned tasks)
+      await checkAllTasksResponded(currentUserId, tasksWithDetails);
+      
+      // Filter out tasks that have already been responded to
+      const unrespondedTasks = await filterRespondedTasks(currentUserId, tasksWithDetails);
+      setUserTasks(unrespondedTasks);
+      console.log('Loaded user tasks with details:', JSON.stringify(unrespondedTasks, null, 2));
     } catch (error) {
       console.error('Error loading user tasks:', error);
     }
   };
 
-  const handleConfirmActive = () => {
+  const filterRespondedTasks = async (currentUserId: string, tasks: TaskWithThreat[]): Promise<TaskWithThreat[]> => {
+    try {
+      // Get alert history from AsyncStorage
+      const historyData = await AsyncStorage.getItem('alertHistory');
+      if (!historyData) {
+        // No history means no tasks have been responded to
+        return tasks;
+      }
+      
+      const history: AlertResponse[] = JSON.parse(historyData);
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      // Filter to get today's responses for this user
+      const todayResponses = history.filter(h => {
+        const responseDate = h.responseDate || new Date(h.threatCreatedAt).toISOString().split('T')[0];
+        return h.userId === currentUserId && responseDate === today;
+      });
+      
+      // Get all taskIds that have been responded to
+      const respondedTaskIds = new Set(todayResponses.map(r => r.taskId));
+      
+      // Filter out tasks that have been responded to
+      return tasks.filter(task => !respondedTaskIds.has(task.taskId));
+    } catch (error) {
+      console.error('Error filtering responded tasks:', error);
+      return tasks;
+    }
+  };
+
+  const checkAllTasksResponded = async (currentUserId: string, tasks: TaskWithThreat[]) => {
+    try {
+      // If no tasks assigned, set allTasksResponded to false
+      if (tasks.length === 0) {
+        setAllTasksResponded(false);
+        return;
+      }
+      
+      // Get alert history from AsyncStorage
+      const historyData = await AsyncStorage.getItem('alertHistory');
+      if (!historyData) {
+        // No history means tasks haven't been responded to
+        setAllTasksResponded(false);
+        return;
+      }
+      
+      const history: AlertResponse[] = JSON.parse(historyData);
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      // Filter to get today's responses for this user
+      const todayResponses = history.filter(h => {
+        const responseDate = h.responseDate || new Date(h.threatCreatedAt).toISOString().split('T')[0];
+        return h.userId === currentUserId && responseDate === today;
+      });
+      
+      // Get all taskIds that have been responded to
+      const respondedTaskIds = new Set(todayResponses.map(r => r.taskId));
+      
+      // Check if all tasks have been responded to
+      const allResponded = tasks.length > 0 && tasks.every(task => respondedTaskIds.has(task.taskId));
+      
+      setAllTasksResponded(allResponded);
+      console.log('All tasks responded:', allResponded, 'Total tasks:', tasks.length, 'Responded:', respondedTaskIds.size);
+    } catch (error) {
+      console.error('Error checking all tasks responded:', error);
+      setAllTasksResponded(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Reload user tasks
+      await loadUserTasks();
+    } catch (error) {
+      console.error('Error refreshing tasks:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleConfirmActive = async () => {
     setIsActive(true);
     setShowConfirmPopup(false);
     console.log('User went active');
+    
+    // Save active status to AsyncStorage with today's date
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await AsyncStorage.setItem('userActiveStatus', JSON.stringify({
+        isActive: true,
+        date: today
+      }));
+      console.log('Active status saved to AsyncStorage');
+    } catch (error) {
+      console.error('Error saving active status:', error);
+    }
+    
     // Load tasks when user goes active
     loadUserTasks();
   };
@@ -171,11 +329,19 @@ export default function EmployeeScreen() {
     console.log('User cancelled going active');
   };
 
-  const handleConfirmInactive = () => {
+  const handleConfirmInactive = async () => {
     setIsActive(false);
     setShowConfirmInactivePopup(false);
     setUserTasks([]); // Clear tasks when going inactive
     console.log('User went inactive');
+    
+    // Remove active status from AsyncStorage
+    try {
+      await AsyncStorage.removeItem('userActiveStatus');
+      console.log('Active status removed from AsyncStorage');
+    } catch (error) {
+      console.error('Error removing active status:', error);
+    }
   };
 
   const handleCancelInactive = () => {
@@ -188,13 +354,25 @@ export default function EmployeeScreen() {
     // Add notification navigation logic here
   };
 
+  const getThreatLevelColor = (threatLevel: string): string => {
+    const level = threatLevel?.toLowerCase() || '';
+    if (level === 'high') {
+      return '#FF3B30'; // Red
+    } else if (level === 'medium') {
+      return '#FF9800'; // Orange
+    } else if (level === 'low') {
+      return '#4CAF50'; // Green
+    }
+    return '#FF3B30'; // Default to red
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <Header
         center={{
           type: 'text',
-          value: (showConfirmPopup || showConfirmInactivePopup) ? 'supermarket theft detection' : 'Alerto',
+          value: (showConfirmPopup || showConfirmInactivePopup) ? t.headerTitlePopup : t.headerTitle,
         }}
         right={{
           type: 'image',
@@ -205,25 +383,36 @@ export default function EmployeeScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <View style={styles.welcomeHeader}>
             <View style={styles.welcomeTextContainer}>
-              <Text style={styles.welcomeTitle}>Welcome, {userName}</Text>
+              <Text style={styles.welcomeTitle}>{t.welcome} {userName}</Text>
               <Text style={styles.dateText}>{currentDate}</Text>
             </View>
             <View style={[styles.statusBadge, isActive && styles.statusBadgeActive]}>
               <View style={[styles.statusDot, !isActive && styles.statusDotInactive]} />
               <Text style={[styles.statusText, isActive && styles.statusTextActive]}>
-                {isActive ? 'Active' : 'Inactive'}
+                {isActive ? t.active : t.inactive}
               </Text>
             </View>
           </View>
 
           {/* Go Active/Inactive Button */}
           <Button1
-            text={isActive ? 'Go Inactive' : 'Go active'}
+            text={isActive ? t.goInactive : t.goActive}
             width="100%"
             onPress={handleGoActive}
             backgroundColor={isActive ? '#FF6600' : '#4A90F2'}
@@ -235,8 +424,8 @@ export default function EmployeeScreen() {
 
         {/* Tasks Section */}
         <View style={styles.tasksSection}>
-          <Text style={styles.tasksTitle}>Tasks</Text>
-            <Text style={styles.tasksNote}>Only visible when you're Active.</Text>
+          <Text style={styles.tasksTitle}>{t.tasks}</Text>
+            <Text style={styles.tasksNote}>{t.tasksNote}</Text>
           
           {isActive && userTasks.length === 0 && (
           <CartBox
@@ -246,12 +435,16 @@ export default function EmployeeScreen() {
             borderColor={colors.border}
             height={39}
           >
-              <Text style={styles.tasksMessage}>No assign tasks today</Text>
+              <Text style={styles.tasksMessage}>
+                {allAssignedTasks.length > 0 && allTasksResponded ? t.allCaughtUp : t.noTasksToday}
+              </Text>
             </CartBox>
           )}
 
           {/* Display Threat Alerts */}
           {isActive && userTasks.length > 0 && userTasks.map((task) => {
+            // Debug: Log threat level
+            console.log('Task threat level:', task.threatLevel, 'for task:', task.taskId);
             // Format date to match: "2024-01-15 14:12:45"
             const threatDate = new Date(task.createdAt);
             const year = threatDate.getFullYear();
@@ -304,25 +497,27 @@ export default function EmployeeScreen() {
                   {/* Video Thumbnail */}
                   <View style={styles.videoContainer}>
                     <View style={styles.videoThumbnail}>
-                      <Text style={styles.videoPlaceholder}>Video Thumbnail</Text>
+                      <Text style={styles.videoPlaceholder}>viedo thumnail</Text>
                     </View>
                     <View style={styles.playIconContainer}>
                       <Text style={styles.playIcon}>▶</Text>
                     </View>
                     {/* Threat Level Badge */}
-                    <View style={styles.threatLevelBadge}>
-                      <Text style={styles.threatLevelText}>High</Text>
+                    <View style={[styles.threatLevelBadge, { backgroundColor: getThreatLevelColor(task.threatLevel) }]}>
+                      <Text style={styles.threatLevelText} numberOfLines={1}>
+                        {task.threatLevel ? String(task.threatLevel) : 'N/A'}
+                      </Text>
                     </View>
                   </View>
 
                   {/* Question */}
                   <Text style={styles.threatQuestion}>
-                    Is this a true threat or a false threat?
+                    {t.threatQuestion}
                   </Text>
 
                   {/* Alert Response Button */}
                   <Button1
-                    text="Alert Response"
+                    text={t.alertResponse}
                     width='auto'
                     onPress={() => {
                       setSelectedTaskId(task.taskId);
@@ -348,12 +543,12 @@ export default function EmployeeScreen() {
       <Popup
         visible={showConfirmPopup}
         onClose={handleCancelActive}
-        title="Confirm Active Status"
+        title={t.confirmActiveStatus}
         titleStyle={styles.popupTitle}
         popupStyle={styles.popupBox}
         dismissOnOverlayPress={false}>
         <Text style={styles.popupMessage}>
-          Are you sure you want to set your status to ACTIVE? This means you are currently working inside the shop.
+          {t.confirmActiveMessage}
         </Text>
         
         <View style={styles.popupButtons}>
@@ -361,14 +556,14 @@ export default function EmployeeScreen() {
             style={styles.cancelButton}
             onPress={handleCancelActive}
             activeOpacity={0.7}>
-            <Text style={styles.cancelButtonText}>No, cancel</Text>
+            <Text style={styles.cancelButtonText}>{t.noCancel}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.confirmButton}
             onPress={handleConfirmActive}
             activeOpacity={0.7}>
-            <Text style={styles.confirmButtonText}>Yes, go Active</Text>
+            <Text style={styles.confirmButtonText}>{t.yesGoActive}</Text>
           </TouchableOpacity>
         </View>
       </Popup>
@@ -377,12 +572,12 @@ export default function EmployeeScreen() {
       <Popup
         visible={showConfirmInactivePopup}
         onClose={handleCancelInactive}
-        title="Confirm Inactive Status"
+        title={t.confirmInactiveStatus}
         titleStyle={styles.popupTitle}
         popupStyle={styles.popupBox}
         dismissOnOverlayPress={false}>
         <Text style={styles.popupMessage}>
-          Are you sure you want to set your status to INACTIVE? This means you are not currently active inside the shop.
+          {t.confirmInactiveMessage}
         </Text>
         
         <View style={styles.popupButtons}>
@@ -397,7 +592,7 @@ export default function EmployeeScreen() {
             style={styles.confirmInactiveButton}
             onPress={handleConfirmInactive}
             activeOpacity={0.7}>
-            <Text style={styles.confirmInactiveButtonText}>Yes, go Inactive</Text>
+            <Text style={styles.confirmInactiveButtonText}>{t.yesGoInactive}</Text>
           </TouchableOpacity>
         </View>
       </Popup>
@@ -416,7 +611,7 @@ export default function EmployeeScreen() {
             <View style={styles.dragHandle} />
             
             {/* Title */}
-            <Text style={styles.alertModalTitle}>Alert Response</Text>
+            <Text style={styles.alertModalTitle}>{t.alertResponseTitle}</Text>
             
             {/* True/False Alert Toggle */}
             <View style={styles.alertTypeContainer}>
@@ -434,7 +629,7 @@ export default function EmployeeScreen() {
                   styles.alertTypeButtonText,
                   alertType === 'true' && styles.alertTypeButtonTextActive
                 ]}>
-                  True alert
+                  {t.trueAlert}
                 </Text>
               </TouchableOpacity>
               
@@ -452,31 +647,31 @@ export default function EmployeeScreen() {
                   styles.alertTypeButtonText,
                   alertType === 'false' && styles.alertTypeButtonTextActive
                 ]}>
-                  False alert
+                  {t.falseAlert}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Options Section */}
             <Text style={styles.optionsHeading}>
-              If the Alert is {alertType.toUpperCase()}
+              {t.ifAlertIs} {alertType.toUpperCase()}
             </Text>
 
             <ScrollView style={styles.optionsScrollView} showsVerticalScrollIndicator={false}>
               {(alertType === 'true' ? [
-                "I saw the person stealing.",
-                "I checked — the person was acting suspicious.",
-                "I went there but the person ran away.",
-                "I found the item they tried to steal.",
-                "I informed security/police.",
-                "Other"
+                t.trueOption1,
+                t.trueOption2,
+                t.trueOption3,
+                t.trueOption4,
+                t.trueOption5,
+                t.other
               ] : [
-                "I checked — nothing was happening.",
-                "The customer was normal, not stealing.",
-                "Camera gave a wrong alert.",
-                "Shadow or movement triggered the alert.",
-                "Too many people — but no problem found.",
-                "Other"
+                t.falseOption1,
+                t.falseOption2,
+                t.falseOption3,
+                t.falseOption4,
+                t.falseOption5,
+                t.other
               ]).map((option, index) => (
                 <TouchableOpacity
                   key={index}
@@ -485,8 +680,8 @@ export default function EmployeeScreen() {
                     selectedOption === option && styles.optionItemSelected
                   ]}
                   onPress={() => {
-                    if (option === "Other") {
-                      setSelectedOption('Other');
+                    if (option === t.other) {
+                      setSelectedOption(t.other);
                     } else {
                       setSelectedOption(option);
                       setCustomInput('');
@@ -502,13 +697,13 @@ export default function EmployeeScreen() {
               ))}
 
               {/* Custom Input for "Other" */}
-              {selectedOption === 'Other' && (
+              {selectedOption === t.other && (
                 <View style={styles.customInputContainer}>
                   <View style={styles.customInputWrapper}>
-                    <Text style={styles.customInputLabel}>Send message</Text>
+                    <Text style={styles.customInputLabel}>{t.sendMessage}</Text>
                     <TextInput
                       style={styles.customInput}
-                      placeholder="Type here......"
+                      placeholder={t.typeHere}
                       value={customInput}
                       onChangeText={setCustomInput}
                       multiline
@@ -522,10 +717,10 @@ export default function EmployeeScreen() {
 
             {/* Next Button */}
             <Button1
-              text="Next"
+              text={t.next}
               width="100%"
               onPress={() => {
-                if (selectedOption || (selectedOption === 'Other' && customInput.trim())) {
+                if (selectedOption || (selectedOption === t.other && customInput.trim())) {
                   setShowSendReportPopup(true);
                   // Don't hide modal, keep it visible
                 }
@@ -546,12 +741,12 @@ export default function EmployeeScreen() {
           setShowSendReportPopup(false);
           // Keep modal open when popup is closed
         }}
-        title="Send Report to Admin?"
+        title={t.sendReportTitle}
         titleStyle={styles.confirmPopupTitle}
         popupStyle={styles.confirmPopupBox}
         dismissOnOverlayPress={false}>
         <Text style={styles.confirmPopupMessage}>
-          Are you sure you want to send this report to the admin? This action cannot be undone.
+          {t.sendReportMessage}
         </Text>
         
         <View style={styles.confirmPopupButtons}>
@@ -559,7 +754,7 @@ export default function EmployeeScreen() {
             style={styles.confirmCancelButton}
             onPress={() => setShowSendReportPopup(false)}
             activeOpacity={0.7}>
-            <Text style={styles.confirmCancelButtonText}>No</Text>
+            <Text style={styles.confirmCancelButtonText}>{t.no}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -586,6 +781,7 @@ export default function EmployeeScreen() {
                 taskId: task.taskId,
                 threatId: task.threatId,
                 threatType: task.threatType,
+                threatLevel: task.threatLevel,
                 cameraId: task.cameraId,
                 cameraName: task.cameraName,
                 cameraLocation: task.cameraLocation,
@@ -593,8 +789,8 @@ export default function EmployeeScreen() {
                 threatCreatedAt: task.createdAt,
                 alertType: alertType,
                 selectedOption: selectedOption,
-                customInput: selectedOption === 'Other' ? customInput : '',
-                fullResponse: selectedOption === 'Other' ? customInput : selectedOption,
+                customInput: selectedOption === t.other ? customInput : '',
+                fullResponse: selectedOption === t.other ? customInput : selectedOption,
                 userId: userId
               };
 
@@ -611,8 +807,12 @@ export default function EmployeeScreen() {
                 console.error('Error saving response to history:', error);
               }
 
-              // Remove task from userTasks
-              setUserTasks(prevTasks => prevTasks.filter(t => t.taskId !== selectedTaskId));
+              // Remove task from userTasks (filter out the responded task)
+              const updatedTasks = userTasks.filter(t => t.taskId !== selectedTaskId);
+              setUserTasks(updatedTasks);
+
+              // Re-check if all assigned tasks have been responded to (use allAssignedTasks, not updatedTasks)
+              await checkAllTasksResponded(userId, allAssignedTasks);
 
               // Close modals and reset
               setShowSendReportPopup(false);
@@ -623,7 +823,7 @@ export default function EmployeeScreen() {
               setCustomInput('');
             }}
             activeOpacity={0.7}>
-            <Text style={styles.confirmYesButtonText}>Yes</Text>
+            <Text style={styles.confirmYesButtonText}>{t.yes}</Text>
           </TouchableOpacity>
         </View>
       </Popup>
@@ -906,17 +1106,28 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: '#FF3B30',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
+    zIndex: 10,
+    minWidth: 50,
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   threatLevelText: {
-    fontSize: 12,
-    fontFamily: fonts.family.bold,
-    fontWeight: 500,
-    color: colors.secondary,
-
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   threatQuestion: {
     fontSize: 16,

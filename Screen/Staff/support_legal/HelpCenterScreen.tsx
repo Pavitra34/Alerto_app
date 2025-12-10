@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   ViewStyle,
+  RefreshControl,
 } from 'react-native';
 import Header from '../../../components/common/Header';
 import InputBox from '../../../components/common/InputBox';
@@ -25,6 +26,7 @@ export default function HelpCenterScreen() {
   const [nameError, setNameError] = useState<string>('');
   const [emailError, setEmailError] = useState<string>('');
   const [messageError, setMessageError] = useState<string>('');
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const handleBack = () => {
     router.back();
@@ -95,6 +97,22 @@ export default function HelpCenterScreen() {
 
   const isFormValid = name.trim() !== '' && email.trim() !== '' && message.trim() !== '';
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Clear form fields on refresh
+      setName('');
+      setEmail('');
+      setMessage('');
+      setNameError('');
+      setEmailError('');
+      setMessageError('');
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Contact data - you can pass actual values here
   const contactData = [
@@ -141,6 +159,14 @@ export default function HelpCenterScreen() {
       <ScrollView 
         contentContainerStyle={styles.content} 
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* App Logo and Name */}
         <View style={styles.logoSection}>
