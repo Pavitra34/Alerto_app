@@ -1,15 +1,20 @@
-import React, { useMemo } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
+  Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { dummyCameras, getActiveCameras } from '../../api/Camera';
 import { getActiveEmployees } from '../../api/Employee_active';
 import { dummyThreats } from '../../api/Threat';
 import { dummyUsers } from '../../api/users';
+import { getTranslations } from '../../assets/Translation';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import colors from '../../styles/Colors';
@@ -47,6 +52,27 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value }) => {
 };
 
 export default function AdminScreen() {
+  const [t, setT] = useState(getTranslations('en'));
+
+  const loadLanguage = async () => {
+    try {
+      const storedLangId = await AsyncStorage.getItem('langId') || 'en';
+      setT(getTranslations(storedLangId));
+    } catch (error) {
+      console.error('Error loading language:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadLanguage();
+    // Reload language when screen is focused (e.g., returning from LanguageScreen)
+    const interval = setInterval(() => {
+      loadLanguage();
+    }, 1000); // Check every second for language changes
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Calculate metrics
   const metrics = useMemo(() => {
     // Camera Online: Count of cameras where camera_status: true / total cameras
@@ -92,42 +118,51 @@ export default function AdminScreen() {
 
   return (
     <View style={styles.container}>
-      <Header
-        center={{
-          type: 'text',
-          value: 'Alerto',
-        }}
-        right={{
-          type: 'image',
-          url: require('../../assets/icons/notification.png'),
-          width: 24,
-          height: 24,
-        }}
-      />
+      {Platform.OS === 'android' && (
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.secondary}
+          translucent={false}
+        />
+      )}
+      <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
+        <Header
+          center={{
+            type: 'text',
+            value: t.headerTitle,
+          }}
+          right={{
+            type: 'image',
+            url: require('../../assets/icons/notification.png'),
+            width: 24,
+            height: 24,
+          }}
+        />
+      </SafeAreaView>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <MetricCard
           icon={require('../../assets/icons/nvr_b.png')}
-          label="Total NVR Online"
+          label={t.totalNVROnline}
           value={metrics.totalNVROnline}
         />
         <MetricCard
           icon={require('../../assets/icons/cam_b.png')}
-          label="Camera online"
+          label={t.cameraOnline}
           value={metrics.cameraOnline}
         />
         <MetricCard
           icon={require('../../assets/icons/alertH_b.png')}
-          label="Today's total alerts"
+          label={t.todaysTotalAlerts}
           value={metrics.todayAlertsCount}
         />
         <MetricCard
           icon={require('../../assets/icons/storage_b.png')}
-          label="Storage health"
+          label={t.storageHealth}
           value={metrics.storageHealth}
         />
         <MetricCard
           icon={require('../../assets/icons/usersH_b.png')}
-          label="Active staff"
+          label={t.activeStaff}
           value={metrics.activeStaff}
         />
       </ScrollView>
@@ -140,7 +175,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.secondary,
-    paddingTop:20,
+  },
+  safeAreaTop: {
+    backgroundColor: colors.secondary,
   },
   content: {
     padding: 20,

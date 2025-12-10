@@ -115,6 +115,50 @@ export const translations = {
     save: 'Save',
     avatarAddedSuccessfully: 'Avatar added successfully',
     avatarRemovedSuccessfully: 'Avatar removed successfully',
+    
+    // Admin Screen
+    totalNVROnline: 'Total NVR Online',
+    cameraOnline: 'Camera online',
+    todaysTotalAlerts: "Today's total alerts",
+    storageHealth: 'Storage health',
+    activeStaff: 'Active staff',
+    
+    // Alert Screen
+    alertAndEvents: 'Alert & Events',
+    unreviewed: 'Unreviewed',
+    assigned: 'Assigned',
+    reviewed: 'Reviewed',
+    unknownCamera: 'Unknown Camera',
+    unknownLocation: 'Unknown Location',
+    assignedStaff: 'Assigned staff:',
+    report: 'Report:',
+    reassign: 'Reassign',
+    assign: 'Assign',
+    assignStaff: 'Assign staff',
+    noAlertsFound: 'No alerts found',
+    unableToLoadCameraPreview: 'Unable to load camera preview',
+    
+    // Camera Screen
+    camera: 'Camera',
+    live: 'Live',
+    
+    // Users Screen
+    users: 'Users',
+    searchByName: 'Search by name',
+    status: 'Status',
+    
+    // Profile Screen (Admin)
+    personalInformation: 'Personal Information',
+    preferences: 'Preferences',
+    supportAndLegal: 'Support & Legal',
+    editFullname: 'Edit Fullname',
+    enterYourFullname: 'Enter your fullname',
+    editEmail: 'Edit Email',
+    enterYourEmail: 'Enter your email',
+    fullnameUpdatedSuccessfully: 'Fullname updated successfully',
+    emailUpdatedSuccessfully: 'Email updated successfully',
+    imageAddedSuccessfully: 'Image added successfully',
+    unknown: 'Unknown',
   },
   
   de: {
@@ -230,6 +274,49 @@ export const translations = {
     save: 'Speichern',
     avatarAddedSuccessfully: 'Avatar erfolgreich hinzugefügt',
     avatarRemovedSuccessfully: 'Avatar erfolgreich entfernt',
+    
+    // Admin Screen
+    totalNVROnline: 'Gesamte NVR Online',
+    cameraOnline: 'Kamera online',
+    todaysTotalAlerts: 'Heutige Gesamtalarme',
+    storageHealth: 'Speichergesundheit',
+    activeStaff: 'Aktives Personal',
+    
+    // Alert Screen
+    alertAndEvents: 'Alarm & Ereignisse',
+    unreviewed: 'Nicht überprüft',
+    assigned: 'Zugewiesen',
+    reviewed: 'Überprüft',
+    unknownCamera: 'Unbekannte Kamera',
+    unknownLocation: 'Unbekannter Standort',
+    assignedStaff: 'Zugewiesenes Personal:',
+    reassign: 'Neu zuweisen',
+    assign: 'Zuweisen',
+    assignStaff: 'Personal zuweisen',
+    noAlertsFound: 'Keine Alarme gefunden',
+    unableToLoadCameraPreview: 'Kameravorschau konnte nicht geladen werden',
+    
+    // Camera Screen
+    camera: 'Kamera',
+    live: 'Live',
+    
+    // Users Screen
+    users: 'Benutzer',
+    searchByName: 'Suche nach Name',
+    status: 'Status',
+    
+    // Profile Screen (Admin)
+    personalInformation: 'Persönliche Informationen',
+    preferences: 'Einstellungen',
+    supportAndLegal: 'Support & Rechtliches',
+    editFullname: 'Vollständigen Namen bearbeiten',
+    enterYourFullname: 'Geben Sie Ihren vollständigen Namen ein',
+    editEmail: 'E-Mail bearbeiten',
+    enterYourEmail: 'Geben Sie Ihre E-Mail ein',
+    fullnameUpdatedSuccessfully: 'Vollständiger Name erfolgreich aktualisiert',
+    emailUpdatedSuccessfully: 'E-Mail erfolgreich aktualisiert',
+    imageAddedSuccessfully: 'Bild erfolgreich hinzugefügt',
+    unknown: 'Unbekannt',
   },
 };
 
@@ -237,4 +324,8 @@ export const translations = {
 export const getTranslations = (langId: string = 'en') => {
   return translations[langId as keyof typeof translations] || translations.en;
 };
+
+// Custom hook for using translations with language state
+// Note: Import this hook in your components
+// import { useTranslation } from '../../assets/Translation';
 
