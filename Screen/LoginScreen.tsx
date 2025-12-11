@@ -1,8 +1,9 @@
+import colors from '@/styles/Colors';
+import fonts from '@/styles/Fonts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
-  Alert,
   BackHandler,
   Image,
   Keyboard,
@@ -11,18 +12,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
+  View
 } from 'react-native';
 import { validateLogin } from '../api/auth';
-import { findUserById } from '../api/users';
+import { getTranslations } from '../assets/Translation';
 import { Button1 } from '../components/common/Button';
 import InputBox from '../components/common/InputBox';
 import Toast, { showErrorToast, toastConfig } from '../components/common/Toast';
-import colors from '@/styles/Colors';
-import fonts from '@/styles/Fonts';
-import { getTranslations } from '../assets/Translation';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -74,7 +71,7 @@ export default function LoginScreen() {
   // Email/Username validation
   const validateEmailOrUsername = (text: string): string => {
     if (!text || text.trim().length === 0) {
-      return t.emailRequired;
+      return t.emailRequired || 'Email/Username is required';
     }
     
     // Check if it's a username (not an email - doesn't contain @)
@@ -83,8 +80,8 @@ export default function LoginScreen() {
     if (!trimmedText.includes('@')) {
       // It's a username, check if it starts with uppercase
       const firstChar = trimmedText.charAt(0);
-      if (firstChar && firstChar !== firstChar.toUpperCase()) {
-        return t.usernameMustStartUppercase;
+      if (firstChar && !/[A-Z]/.test(firstChar)) {
+        return t.usernameMustStartUppercase || 'Username must start with an uppercase letter';
       }
     }
     
@@ -123,11 +120,8 @@ export default function LoginScreen() {
     setEmailOrUsername(text);
     console.log('Email/Username:', text);
     
-    // Real-time validation
-    if (text.trim().length > 0) {
-      const error = validateEmailOrUsername(text);
-      setEmailError(error);
-    } else {
+    // Clear error when user starts typing
+    if (emailError) {
       setEmailError('');
     }
   };
@@ -137,11 +131,8 @@ export default function LoginScreen() {
     setPassword(text);
     console.log('Password:', text);
     
-    // Real-time validation
-    if (text.trim().length > 0) {
-      const error = validatePassword(text);
-      setPasswordError(error);
-    } else {
+    // Clear error when user starts typing
+    if (passwordError) {
       setPasswordError('');
     }
   };
@@ -164,28 +155,18 @@ export default function LoginScreen() {
     }
 
     try {
-      // Validate login using auth.ts
-      const authUser = validateLogin(emailOrUsername.trim(), password);
+      // Validate login using backend API
+      const loginResult = await validateLogin(emailOrUsername.trim(), password);
 
-      if (authUser) {
-        // Get user details using users.ts
-        const userDetails = findUserById(authUser.id);
-
-        if (!userDetails) {
-          showErrorToast(t.userDetailsNotFound);
-          return;
-        }
-
-        // Generate token
-        const token = `dummy-token-${authUser.id}`;
+      if (loginResult) {
+        const { user, token, fullUser } = loginResult;
 
         // Save token and userId to AsyncStorage
         try {
           await AsyncStorage.setItem('authToken', token);
-          await AsyncStorage.setItem('userId', authUser.id);
+          await AsyncStorage.setItem('userId', user.id);
           
           // Save full user object
-          const fullUser = { ...authUser, ...userDetails };
           await AsyncStorage.setItem('userObj', JSON.stringify(fullUser));
         } catch (storageError) {
           console.error('Error saving to storage:', storageError);
@@ -194,11 +175,11 @@ export default function LoginScreen() {
         }
 
         // Navigate based on user role (toast will show in EmployeeScreen)
-        const role = userDetails.role;
+        const role = fullUser.role;
         
         // Get langId and userId for navigation params
         const langId = await AsyncStorage.getItem('langId') || 'en';
-        const userId = authUser.id;
+        const userId = user.id;
         
         // Navigate based on user role
         if (role === 'admin') {
@@ -231,9 +212,19 @@ export default function LoginScreen() {
         showErrorToast(t.invalidCredential);
         // Don't focus email field - keep keyboard dismissed
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      showErrorToast(t.loginFailed);
+      // Show backend error message if available, otherwise show generic error
+      let errorMessage = error?.message || t.loginFailed || 'Login failed';
+      
+      // For multi-line error messages, show first line in toast and log full message
+      if (errorMessage.includes('\n')) {
+        const firstLine = errorMessage.split('\n')[0];
+        console.error('Full error details:', errorMessage);
+        errorMessage = firstLine;
+      }
+      
+      showErrorToast(errorMessage);
     }
   };
 
@@ -268,7 +259,7 @@ export default function LoginScreen() {
               ref={emailRef}
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
-              autoCapitalize="none"
+              autoCapitalize="words"
               autoCorrect={false}
             />
 
