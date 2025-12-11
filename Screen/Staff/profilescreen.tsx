@@ -2,37 +2,35 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Image,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
-  Platform,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { findUserById } from '../../api/users';
-import { findUserByEmail, findUserByUsername } from '../../api/auth';
-import Header from '../../components/common/Header';
-import CartBox from '../../components/common/CartBox';
 import { Button1 } from '../../components/common/Button';
+import CartBox from '../../components/common/CartBox';
+import Header from '../../components/common/Header';
 import Popup from '../../components/common/Popup';
 import Toast, { showSuccessToast, toastConfig } from '../../components/common/Toast';
-import Footer from '../Footer';
 import colors from '../../styles/Colors';
+import Footer from '../Footer';
 // @ts-ignore
-import fonts from '../../styles/Fonts';
 import { getTranslations } from '../../assets/Translation';
+import fonts from '../../styles/Fonts';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [fullname, setFullname] = useState<string>('Kishana');
-  const [email, setEmail] = useState<string>('example@gmail.com');
-  const [phoneNumber, setPhoneNumber] = useState<string>('07755112445');
+  const [fullname, setFullname] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
   const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
@@ -64,25 +62,20 @@ export default function ProfileScreen() {
       const storedUserId = await AsyncStorage.getItem('userId') || '';
       setUserId(storedUserId);
 
-      if (storedUserId) {
-        const user = findUserById(storedUserId);
-        if (user) {
-          setFullname(user.fullname);
-          setPhoneNumber(user.phonenumber.toString());
-        }
-      }
-
+      // Get user data from AsyncStorage (saved during login from backend)
       const userObjString = await AsyncStorage.getItem('userObj');
       if (userObjString) {
         const userObj = JSON.parse(userObjString);
-        if (userObj.email) {
-          const authUser = findUserByEmail(userObj.email) || findUserByUsername(userObj.email);
-          if (authUser) {
-            setEmail(authUser.email);
-          }
-        }
+        
+        // Set user data from backend response
         if (userObj.fullname) {
           setFullname(userObj.fullname);
+        }
+        if (userObj.email) {
+          setEmail(userObj.email);
+        }
+        if (userObj.phonenumber) {
+          setPhoneNumber(userObj.phonenumber.toString());
         }
       }
 

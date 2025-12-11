@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   Platform,
@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { dummyCameras, getActiveCameras } from '../../api/Camera';
 import { getActiveEmployees } from '../../api/Employee_active';
 import { dummyThreats } from '../../api/Threat';
-import { dummyUsers } from '../../api/users';
+import { getUsersByRole, User } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
@@ -53,6 +53,14 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value }) => {
 
 export default function AdminScreen() {
   const [t, setT] = useState(getTranslations('en'));
+  const [employees, setEmployees] = useState<User[]>([]);
+  const [metrics, setMetrics] = useState({
+    totalNVROnline: '12/13',
+    cameraOnline: '0/0',
+    todayAlertsCount: '0',
+    storageHealth: '87%',
+    activeStaff: '0/0',
+  });
 
   const loadLanguage = async () => {
     try {
@@ -63,8 +71,19 @@ export default function AdminScreen() {
     }
   };
 
+  const loadEmployees = async () => {
+    try {
+      const employeeUsers = await getUsersByRole('employee');
+      setEmployees(employeeUsers);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployees([]);
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
+    loadEmployees();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -74,7 +93,7 @@ export default function AdminScreen() {
   }, []);
 
   // Calculate metrics
-  const metrics = useMemo(() => {
+  useEffect(() => {
     // Camera Online: Count of cameras where camera_status: true / total cameras
     const activeCameras = getActiveCameras();
     const totalCameras = dummyCameras.length;
@@ -93,13 +112,13 @@ export default function AdminScreen() {
     // Active Staff: Count of Employee_active where active_status: true AND role: employee
     const activeEmployees = getActiveEmployees();
     const activeStaffWithEmployeeRole = activeEmployees.filter((emp) => {
-      const user = dummyUsers.find((u) => u.id === emp.user_id);
+      const user = employees.find((u) => u.id === emp.user_id);
       return user && user.role === 'employee';
     });
     const activeStaffCount = activeStaffWithEmployeeRole.length;
 
-    // Total Staff: Count of employees from users.ts with role: employee
-    const totalStaff = dummyUsers.filter((user) => user.role === 'employee').length;
+    // Total Staff: Count of employees from API with role: employee
+    const totalStaff = employees.length;
 
     // Total NVR Online: Dummy number
     const totalNVROnline = '12/13';
@@ -107,14 +126,14 @@ export default function AdminScreen() {
     // Storage Health: Dummy percentage
     const storageHealth = '87%';
 
-    return {
+    setMetrics({
       totalNVROnline,
       cameraOnline,
       todayAlertsCount,
       storageHealth,
       activeStaff: `${activeStaffCount}/${totalStaff}`,
-    };
-  }, []);
+    });
+  }, [employees]);
 
   return (
     <View style={styles.container}>

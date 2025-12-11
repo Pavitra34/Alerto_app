@@ -8,16 +8,15 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { findUserByEmail, findUserByUsername } from '../../api/auth';
 import { getTranslations } from '../../assets/Translation';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
@@ -32,8 +31,8 @@ import fonts from '../../styles/Fonts';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [fullname, setFullname] = useState<string>('Kishana');
-  const [email, setEmail] = useState<string>('example@gmail.com');
+  const [fullname, setFullname] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
   const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
@@ -85,18 +84,17 @@ export default function ProfileScreen() {
       const storedUserId = await AsyncStorage.getItem('userId') || '';
       setUserId(storedUserId);
 
-
+      // Get user data from AsyncStorage (saved during login from backend)
       const userObjString = await AsyncStorage.getItem('userObj');
       if (userObjString) {
         const userObj = JSON.parse(userObjString);
-        if (userObj.email) {
-          const authUser = findUserByEmail(userObj.email) || findUserByUsername(userObj.email);
-          if (authUser) {
-            setEmail(authUser.email);
-          }
-        }
+        
+        // Set user data from backend response
         if (userObj.fullname) {
           setFullname(userObj.fullname);
+        }
+        if (userObj.email) {
+          setEmail(userObj.email);
         }
       }
 

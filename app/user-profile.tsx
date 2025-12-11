@@ -1,4 +1,4 @@
-import UserProfileScreen from '../Screen/Admin/More/UserProfileScreen';
+import UserProfileScreen from '../Screen/Admin/more/UserProfileScreen';
 
 export default UserProfileScreen;
 

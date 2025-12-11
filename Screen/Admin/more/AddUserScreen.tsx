@@ -1,27 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   Image,
-  Platform,
-  StatusBar,
-  Modal,
-  Pressable,
-  TextInput,
-  ScrollView,
   KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getTranslations } from '../../../assets/Translation';
+import { Button1 } from '../../../components/common/Button';
 import Header from '../../../components/common/Header';
 import InputBox from '../../../components/common/InputBox';
-import { Button1 } from '../../../components/common/Button';
-import { getTranslations } from '../../../assets/Translation';
+import Toast, { showErrorToast, showSuccessToast, toastConfig } from '../../../components/common/Toast';
 import colors from '../../../styles/Colors';
 // @ts-ignore
+import { registerUser } from '../../../api/auth';
 import fonts from '../../../styles/Fonts';
 
 export default function AddUserScreen() {
@@ -66,7 +68,7 @@ export default function AddUserScreen() {
     router.back();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Reset all errors
     setFullnameError('');
     setEmailError('');
@@ -111,26 +113,30 @@ export default function AddUserScreen() {
     if (!username.trim()) {
       setUsernameError('Username is required');
       isValid = false;
+    } else {
+      // Validate username starts with uppercase
+      if (!/^[A-Z]/.test(username.trim())) {
+        setUsernameError('Username must start with an uppercase letter');
+        isValid = false;
+      }
     }
 
     // Validate Password
     if (!password.trim()) {
       setPasswordError('Password is required');
       isValid = false;
+    } else {
+      // Validate password strength (must have uppercase, lowercase, and symbol)
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/;
+      if (!passwordRegex.test(password)) {
+        setPasswordError('Password must contain at least one uppercase letter, one lowercase letter, and one symbol');
+        isValid = false;
+      }
     }
 
     // If all valid, save the data
     if (isValid) {
-      const userData = {
-        fullname: fullname.trim(),
-        email: email.trim(),
-        phoneNumber: phoneNumber.trim(),
-        countryCode: selectedCountryCode,
-        username: username.trim(),
-        password: password.trim(),
-      };
-      console.log('Save user:', userData);
-      // Add save logic here
+      await handleRegisterUser();
     }
   };
 
@@ -176,6 +182,81 @@ export default function AddUserScreen() {
 
   const handleCloseCountryPicker = () => {
     setShowCountryPicker(false);
+  };
+
+  // Register user function that calls backend API
+  const handleRegisterUser = async () => {
+    try {
+      // Combine country code with phone number
+      const fullPhoneNumber = parseInt(phoneNumber.trim());
+      
+      if (isNaN(fullPhoneNumber) || phoneNumber.trim().length === 0) {
+        setPhoneError('Phone number must be a valid number');
+        return;
+      }
+      
+      // Call registerUser from auth.ts
+      const result = await registerUser(
+        fullname.trim(),
+        email.trim(),
+        fullPhoneNumber,
+        username.trim(),
+        password.trim(),
+        'employee' // Default role for new users
+      );
+
+      if (result) {
+        // Registration successful
+        showSuccessToast('User registered successfully');
+        
+        // Clear form fields
+        setFullname('');
+        setEmail('');
+        setPhoneNumber('');
+        setUsername('');
+        setPassword('');
+        setFullnameError('');
+        setEmailError('');
+        setPhoneError('');
+        setUsernameError('');
+        setPasswordError('');
+        
+        // Navigate back after a short delay
+        setTimeout(() => {
+          router.back();
+        }, 1500);
+      }
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      
+      // Show error message from backend
+      const errorMessage = error?.message || 'Registration failed. Please try again.';
+      showErrorToast(errorMessage);
+      
+      // Set specific field errors if provided
+      if (error?.errors) {
+        if (error.errors.email) setEmailError(error.errors.email);
+        if (error.errors.username) setUsernameError(error.errors.username);
+        if (error.errors.fullname) setFullnameError(error.errors.fullname);
+        if (error.errors.phonenumber) setPhoneError(error.errors.phonenumber);
+        if (error.errors.password) setPasswordError(error.errors.password);
+      }
+      
+      // Handle specific backend error messages
+      if (errorMessage.includes('Email already exists')) {
+        setEmailError('Email already exists');
+      } else if (errorMessage.includes('Username already exists')) {
+        setUsernameError('Username already exists');
+      } else if (errorMessage.includes('Username must start with an uppercase letter')) {
+        setUsernameError('Username must start with an uppercase letter');
+      } else if (errorMessage.includes('Password must contain')) {
+        setPasswordError('Password must contain at least one uppercase letter, one lowercase letter, and one symbol');
+      } else if (errorMessage.includes('valid email')) {
+        setEmailError('Please provide a valid email address');
+      } else if (errorMessage.includes('Phone number')) {
+        setPhoneError('Phone number must be a valid number');
+      }
+    }
   };
 
   return (
@@ -306,11 +387,16 @@ export default function AddUserScreen() {
             placeholder={t.enterTheUsername || 'Enter the username'}
             value={username}
             setValue={(text) => {
-              setUsername(text);
+              // Auto-capitalize first letter if user types lowercase
+              if (text.length === 1 && /^[a-z]/.test(text)) {
+                setUsername(text.toUpperCase());
+              } else {
+                setUsername(text);
+              }
               if (usernameError) setUsernameError('');
             }}
             errorMessage={usernameError}
-            autoCapitalize="none"
+            autoCapitalize="words"
             returnKeyType="next"
             containerStyle={styles.inputContainer}
             onSubmitEditing={() => passwordRef.current?.focus()}
@@ -347,6 +433,9 @@ export default function AddUserScreen() {
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Toast Component */}
+      <Toast config={toastConfig} />
 
       {/* Save Button - Fixed at Bottom */}
       <View style={[styles.saveButtonContainer, { paddingBottom: insets.bottom + 20 }]}>

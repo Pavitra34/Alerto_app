@@ -24,7 +24,7 @@ import colors from '../../styles/Colors';
 import Footer_A from '../Footer_A';
 // @ts-ignore
 import { dummyEmployeeActive } from '../../api/Employee_active';
-import { dummyUsers, User } from '../../api/users';
+import { getUsersByRole, User } from '../../api/users';
 import fonts from '../../styles/Fonts';
 
 interface UserWithStatus extends User {
@@ -38,6 +38,8 @@ export default function UsersScreen() {
   const [selectedStatus, setSelectedStatus] = useState<'active' | 'inactive' | null>(null);
   const [tempSelectedStatus, setTempSelectedStatus] = useState<'active' | 'inactive' | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [employees, setEmployees] = useState<User[]>([]);
   const [t, setT] = useState(getTranslations('en'));
   const insets = useSafeAreaInsets();
 
@@ -50,8 +52,23 @@ export default function UsersScreen() {
     }
   };
 
+  // Load employees from API
+  const loadEmployees = async () => {
+    try {
+      setLoading(true);
+      const employeeUsers = await getUsersByRole('employee');
+      setEmployees(employeeUsers);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployees([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
+    loadEmployees();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -62,20 +79,26 @@ export default function UsersScreen() {
 
   // Combine users with their active status (only employees, current date only)
   const usersWithStatus: UserWithStatus[] = useMemo(() => {
+    // Safety check for employees array
+    if (!employees || employees.length === 0) {
+      return [];
+    }
+
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
 
-    // Filter only employees (not admin or superadmin)
-    const employees = dummyUsers.filter((user) => user.role === 'employee');
+    // Safety check for dummyEmployeeActive
+    const activeStatuses = dummyEmployeeActive || [];
 
     return employees.map((user) => {
       // Find all active status entries for this user
-      const allActiveStatuses = dummyEmployeeActive.filter(
-        (emp) => emp.user_id === user.id
+      const allActiveStatuses = activeStatuses.filter(
+        (emp) => emp && emp.user_id === user.id
       );
 
       // Find the entry that matches today's date
       const todayActiveStatus = allActiveStatuses.find((emp) => {
+        if (!emp || !emp.updatedat) return false;
         const empDate = new Date(emp.updatedat).toISOString().split('T')[0];
         return empDate === today;
       });
@@ -85,7 +108,7 @@ export default function UsersScreen() {
         activeStatus: todayActiveStatus ? todayActiveStatus.active_status : null,
       };
     });
-  }, []);
+  }, [employees]);
 
   // Filter users based on search query and status
   const filteredUsers = useMemo(() => {
@@ -136,14 +159,14 @@ export default function UsersScreen() {
   };
 
   const handleAddUser = () => {
-    router.push('/adduser' as any);
+    router.push('/adduser');
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Reload user data - the useMemo will automatically recalculate
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Reload employees from API
+      await loadEmployees();
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
@@ -232,7 +255,16 @@ export default function UsersScreen() {
             tintColor={colors.primary}
           />
         }>
-        {filteredUsers.map((user) => (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        ) : filteredUsers.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No employees found</Text>
+          </View>
+        ) : (
+          filteredUsers.map((user) => (
           <TouchableOpacity
             key={user.id}
             activeOpacity={0.7}
@@ -282,7 +314,8 @@ export default function UsersScreen() {
             </View>
           </CartBox>
           </TouchableOpacity>
-        ))}
+          ))
+        )}
       </ScrollView>
 
       {/* Filter Modal */}
@@ -563,5 +596,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.family.medium,
     fontWeight: fonts.weight.medium,
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    color: colors.subtext,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    color: colors.subtext,
   },
 });

@@ -3,96 +3,168 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string;
-  password: string;
 }
 
-// Dummy Authentication Data (10 users - IDs match with users.ts)
-export const dummyUsers: AuthUser[] = [
-  {
-    id: "1",
-    username: "Danu",
-    email: "danu@gmail.com",
-    password: "Pass@123",
-  },
-  {
-    id: "2",
-    username: "Pavi",
-    email: "pavi@gmail.com",
-    password: "Pass@123",
-  },
-  {
-    id: "3",
-    username: "michael_johnson",
-    email: "michael.johnson@example.com",
-    password: "password789",
-  },
-  {
-    id: "4",
-    username: "emily_williams",
-    email: "emily.williams@example.com",
-    password: "password012",
-  },
-  {
-    id: "5",
-    username: "david_brown",
-    email: "david.brown@example.com",
-    password: "password345",
-  },
-  {
-    id: "6",
-    username: "sarah_davis",
-    email: "sarah.davis@example.com",
-    password: "password678",
-  },
-  {
-    id: "7",
-    username: "robert_miller",
-    email: "robert.miller@example.com",
-    password: "password901",
-  },
-  {
-    id: "8",
-    username: "jennifer_wilson",
-    email: "jennifer.wilson@example.com",
-    password: "password234",
-  },
-  {
-    id: "9",
-    username: "william_moore",
-    email: "william.moore@example.com",
-    password: "password567",
-  },
-  {
-    id: "10",
-    username: "lisa_taylor",
-    email: "lisa.taylor@example.com",
-    password: "password890",
-  },
-];
+// Backend API Response Types
+export interface LoginResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    token: string;
+    user: {
+      id: string;
+      username: string;
+      email: string;
+      fullname: string;
+      phonenumber: number;
+      role: string;
+    };
+  };
+  error?: string;
+}
 
-// Helper function to find user by email
-export const findUserByEmail = (email: string): AuthUser | undefined => {
-  return dummyUsers.find((user) => user.email === email);
-};
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    token: string;
+    user: {
+      id: string;
+      username: string;
+      email: string;
+      fullname: string;
+      phonenumber: number;
+      role: string;
+    };
+  };
+  errors?: {
+    email?: string;
+    username?: string;
+    fullname?: string;
+    phonenumber?: string;
+    password?: string;
+  };
+}
 
-// Helper function to find user by username
-export const findUserByUsername = (username: string): AuthUser | undefined => {
-  return dummyUsers.find((user) => user.username === username);
-};
-
-// Helper function to validate login credentials
-export const validateLogin = (
+// Login function that calls backend API
+export const validateLogin = async (
   emailOrUsername: string,
   password: string
-): AuthUser | null => {
-  const user =
-    findUserByEmail(emailOrUsername) ||
-    findUserByUsername(emailOrUsername);
+): Promise<{ user: AuthUser; token: string; fullUser: any }> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('auth/login');
 
-  if (user && user.password === password) {
-    return user;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        emailOrUsername: emailOrUsername.trim(),
+        password: password,
+      }),
+    });
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Server error: ${response.status}`);
+      } catch {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const data: LoginResponse = await response.json();
+
+    if (data.success && data.data) {
+      return {
+        user: {
+          id: data.data.user.id,
+          username: data.data.user.username,
+          email: data.data.user.email,
+        },
+        token: data.data.token,
+        fullUser: data.data.user,
+      };
+    } else {
+      throw new Error(data.message || data.error || 'Invalid credentials');
+    }
+  } catch (error: any) {
+    if (error.message && (
+      error.message.includes('Network request failed') || 
+      error.message.includes('Failed to fetch') ||
+      error.message.includes('NetworkError')
+    )) {
+      throw new Error(
+        'Cannot connect to backend server. Please check:\n' +
+        '1. Backend server is running\n' +
+        '2. Update API URL in constants/api.ts\n' +
+        '3. For physical devices, use IP address instead of localhost'
+      );
+    }
+    
+    if (error.message && error.message.includes('JSON')) {
+      throw new Error('Server error. Please check if the backend server is running correctly.');
+    }
+    
+    throw error;
   }
+};
 
-  return null;
+// Register user function that calls backend API
+export const registerUser = async (
+  fullname: string,
+  email: string,
+  phonenumber: number,
+  username: string,
+  password: string,
+  role?: string
+): Promise<{ user: any; token: string }> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('auth/register');
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fullname: fullname.trim(),
+        email: email.trim(),
+        phonenumber: phonenumber,
+        username: username.trim(),
+        password: password,
+        role: role || 'employee',
+      }),
+    });
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        const error: any = new Error(errorData.message || 'Registration failed');
+        error.errors = errorData.errors;
+        throw error;
+      } catch (parseError) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const data: RegisterResponse = await response.json();
+
+    if (data.success && data.data) {
+      return {
+        user: data.data.user,
+        token: data.data.token,
+      };
+    } else {
+      const error: any = new Error(data.message || 'Registration failed');
+      error.errors = data.errors;
+      throw error;
+    }
+  } catch (error: any) {
+    throw error;
+  }
 };
 

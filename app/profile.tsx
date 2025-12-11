@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { findUserById } from '../api/users';
 import AdminProfileScreen from '../Screen/Admin/ProfileScreen';
 import ProfileScreen from '../Screen/Staff/profilescreen';
 
@@ -12,12 +11,14 @@ export default function ProfileRoute() {
   useEffect(() => {
     const loadUserRole = async () => {
       try {
-        const storedUserId = await AsyncStorage.getItem('userId');
+        // Get user data from AsyncStorage (saved during login from backend)
+        const userObjString = await AsyncStorage.getItem('userObj');
         
-        if (storedUserId) {
-          const user = findUserById(storedUserId);
-          if (user && user.role) {
-            setUserRole(user.role);
+        if (userObjString) {
+          const userObj = JSON.parse(userObjString);
+          // Get role from backend user data
+          if (userObj.role) {
+            setUserRole(userObj.role);
           } else {
             setUserRole('employee'); // Default to employee
           }

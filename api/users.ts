@@ -6,94 +6,173 @@ export interface User {
   email: string;
   phonenumber: number;
   role: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Dummy Users Data (10 users)
-export const dummyUsers: User[] = [
-  {
-    id: "1",
-    fullname: "Kish Danu",
-    username: "Danu",
-    email: "danu@gmail.com",
-    phonenumber: 9876543210,
-    role: "admin",
-  },
-  {
-    id: "2",
-    fullname: "Suthakaran Pavitra",
-    username: "Pavi",
-    email: "pavi@gmail.com",
-    phonenumber: 9876543211,
-    role: "employee",
-  },
-  {
-    id: "3",
-    fullname: "Michael Johnson",
-    username: "michael_johnson",
-    email: "michael.johnson@example.com",
-    phonenumber: 9876543212,
-    role: "employee",
-  },
-  {
-    id: "4",
-    fullname: "Emily Williams",
-    username: "emily_williams",
-    email: "emily.williams@example.com",
-    phonenumber: 9876543213,
-    role: "admin",
-  },
-  {
-    id: "5",
-    fullname: "Danu Krish",
-    username: "david_brown",
-    email: "david.brown@example.com",
-    phonenumber: 9876543214,
-    role: "employee",
-  },
-  {
-    id: "6",
-    fullname: "Sarah Davis",
-    username: "sarah_davis",
-    email: "sarah.davis@example.com",
-    phonenumber: 9876543215,
-    role: "superadmin",
-  },
-  {
-    id: "7",
-    fullname: "Robert Miller",
-    username: "robert_miller",
-    email: "robert.miller@example.com",
-    phonenumber: 9876543216,
-    role: "employee",
-  },
-  {
-    id: "8",
-    fullname: "Jennifer Wilson",
-    username: "jennifer_wilson",
-    email: "jennifer.wilson@example.com",
-    phonenumber: 9876543217,
-    role: "admin",
-  },
-  {
-    id: "9",
-    fullname: "William Moore",
-    username: "william_moore",
-    email: "william.moore@example.com",
-    phonenumber: 9876543218,
-    role: "employee",
-  },
-  {
-    id: "10",
-    fullname: "Lisa Taylor",
-    username: "lisa_taylor",
-    email: "lisa.taylor@example.com",
-    phonenumber: 9876543219,
-    role: "admin",
-  },
-];
+// Backend API Response Types
+export interface GetAllUsersResponse {
+  success: boolean;
+  message: string;
+  data: {
+    users: User[];
+    count: number;
+  };
+}
 
-// Helper function to find user by id
-export const findUserById = (id: string): User | undefined => {
-  return dummyUsers.find((user) => user.id === id);
+export interface GetUserByIdResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: User;
+  };
+}
+
+export interface GetUsersByRoleResponse {
+  success: boolean;
+  message: string;
+  data: {
+    users: User[];
+    count: number;
+    role: string;
+  };
+}
+
+// API Helper Functions
+
+// Get all users from backend
+export const getAllUsers = async (): Promise<User[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('users');
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetAllUsersResponse = await response.json();
+
+    if (data.success && data.data) {
+      // Map backend user format to frontend format
+      return data.data.users.map((user: any) => ({
+        id: user._id || user.id,
+        fullname: user.fullname,
+        username: user.username,
+        email: user.email,
+        phonenumber: user.phonenumber,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }));
+    } else {
+      throw new Error(data.message || 'Failed to fetch users');
+    }
+  } catch (error: any) {
+    console.error('Get all users API error:', error);
+    throw error;
+  }
+};
+
+// Get user by ID from backend
+export const getUserById = async (id: string): Promise<User | null> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl(`users/${id}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // User not found
+      }
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetUserByIdResponse = await response.json();
+
+    if (data.success && data.data) {
+      const user: any = data.data.user;
+      // Map backend user format to frontend format
+      return {
+        id: user._id || user.id,
+        fullname: user.fullname,
+        username: user.username,
+        email: user.email,
+        phonenumber: user.phonenumber,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    } else {
+      throw new Error(data.message || 'Failed to fetch user');
+    }
+  } catch (error: any) {
+    console.error('Get user by ID API error:', error);
+    throw error;
+  }
+};
+
+// Get users by role from backend
+export const getUsersByRole = async (role: 'admin' | 'employee'): Promise<User[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl(`users/role/${role}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetUsersByRoleResponse = await response.json();
+
+    if (data.success && data.data) {
+      // Map backend user format to frontend format
+      return data.data.users.map((user: any) => ({
+        id: user._id || user.id,
+        fullname: user.fullname,
+        username: user.username,
+        email: user.email,
+        phonenumber: user.phonenumber,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }));
+    } else {
+      throw new Error(data.message || 'Failed to fetch users by role');
+    }
+  } catch (error: any) {
+    console.error('Get users by role API error:', error);
+    throw error;
+  }
+};
+
+// Helper function to find user by id (for backward compatibility)
+// This now uses the API instead of dummy data
+export const findUserById = async (id: string): Promise<User | undefined> => {
+  try {
+    const user = await getUserById(id);
+    return user || undefined;
+  } catch (error) {
+    console.error('Error finding user by ID:', error);
+    return undefined;
+  }
 };
 
