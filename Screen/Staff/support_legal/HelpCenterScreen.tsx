@@ -1,22 +1,21 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   Image,
-  ViewStyle,
-  RefreshControl,
   Platform,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getContactDetails } from '../../../api/contact';
+import { Button1 } from '../../../components/common/Button';
+import { ContactCardProps, GroupedContactList } from '../../../components/common/Contact';
 import Header from '../../../components/common/Header';
 import InputBox from '../../../components/common/InputBox';
-import { Button1 } from '../../../components/common/Button';
-import { GroupedContactList } from '../../../components/common/Contact';
-import Footer from '../../Footer';
 import colors from '../../../styles/Colors';
 // @ts-ignore
 import fonts from '../../../styles/Fonts';
@@ -30,6 +29,8 @@ export default function HelpCenterScreen() {
   const [emailError, setEmailError] = useState<string>('');
   const [messageError, setMessageError] = useState<string>('');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [contactData, setContactData] = useState<ContactCardProps[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const handleBack = () => {
     router.back();
@@ -100,9 +101,56 @@ export default function HelpCenterScreen() {
 
   const isFormValid = name.trim() !== '' && email.trim() !== '' && message.trim() !== '';
 
+  // Load contact details from API
+  const loadContactDetails = async () => {
+    try {
+      setLoading(true);
+      const contact = await getContactDetails();
+      
+      // Create contact data array from API response
+      const contactList: ContactCardProps[] = [
+        {
+          icon: require('../../../assets/icons/phone.png'),
+          label: 'Phone number',
+          value: contact.phone,
+          buttonTitle: 'Call',
+          onPress: () => {},
+        },
+        {
+          icon: require('../../../assets/icons/email.png'),
+          label: 'Email',
+          value: contact.email,
+          buttonTitle: 'Mail',
+          onPress: () => {},
+        },
+        {
+          icon: require('../../../assets/icons/web.png'),
+          label: 'Website',
+          value: contact.website,
+          buttonTitle: 'Visit',
+          onPress: () => {},
+        },
+      ];
+      
+      setContactData(contactList);
+    } catch (error) {
+      console.error('Error loading contact details:', error);
+      // Set empty array if API fails - only backend data should be used
+      setContactData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadContactDetails();
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
+      // Reload contact details
+      await loadContactDetails();
       // Clear form fields on refresh
       setName('');
       setEmail('');
@@ -116,31 +164,6 @@ export default function HelpCenterScreen() {
       setRefreshing(false);
     }
   };
-
-  // Contact data - you can pass actual values here
-  const contactData = [
-    {
-      icon: require('../../../assets/icons/phone.png'),
-      label: 'Phone number',
-      value: '07755112445',
-      buttonTitle: 'Call',
-      onPress: () => {},
-    },
-    {
-      icon: require('../../../assets/icons/email.png'),
-      label: 'Email',
-      value: 'example@gmail.com',
-      buttonTitle: 'Mail',
-      onPress: () => {},
-    },
-    {
-      icon: require('../../../assets/icons/web.png'),
-      label: 'Website',
-      value: 'example.com',
-      buttonTitle: 'Visit',
-      onPress: () => {},
-    },
-  ];
 
   return (
     <View style={styles.container}>
@@ -239,7 +262,7 @@ export default function HelpCenterScreen() {
           <GroupedContactList data={contactData} />
         </View>
       </ScrollView>
-      <Footer />
+      
     </View>
   );
 }

@@ -1,20 +1,20 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   Image,
-  RefreshControl,
   Platform,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Header from '../../../components/common/Header';
-import { GroupedContactList } from '../../../components/common/Contact';
-import Footer from '../../Footer';
+import { getContactDetails } from '../../../api/contact';
 import { getTermsOfServiceIntroduction, getTermsOfServiceTerms } from '../../../api/support_legal';
+import { ContactCardProps, GroupedContactList } from '../../../components/common/Contact';
+import Header from '../../../components/common/Header';
 import colors from '../../../styles/Colors';
 // @ts-ignore
 import fonts from '../../../styles/Fonts';
@@ -22,50 +22,93 @@ import fonts from '../../../styles/Fonts';
 export default function TermsOfServiceScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const introduction = getTermsOfServiceIntroduction();
-  const terms = getTermsOfServiceTerms();
+  const [contactData, setContactData] = useState<ContactCardProps[]>([]);
+  const [introduction, setIntroduction] = useState<string>('');
+  const [terms, setTerms] = useState<Array<{ title: string; description: string }>>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const handleBack = () => {
     router.back();
   };
 
+  // Load contact details from API
+  const loadContactDetails = async () => {
+    try {
+      const contact = await getContactDetails();
+      
+      // Create contact data array from API response
+      const contactList: ContactCardProps[] = [
+        {
+          icon: require('../../../assets/icons/phone.png'),
+          label: 'Phone number',
+          value: contact.phone,
+          buttonTitle: 'Call',
+          onPress: () => {},
+        },
+        {
+          icon: require('../../../assets/icons/email.png'),
+          label: 'Email',
+          value: contact.email,
+          buttonTitle: 'Mail',
+          onPress: () => {},
+        },
+        {
+          icon: require('../../../assets/icons/web.png'),
+          label: 'Website',
+          value: contact.website,
+          buttonTitle: 'Visit',
+          onPress: () => {},
+        },
+      ];
+      
+      setContactData(contactList);
+    } catch (error) {
+      console.error('Error loading contact details:', error);
+      // Set empty array if API fails - only backend data should be used
+      setContactData([]);
+    }
+  };
+
+  // Load Terms of Service content from API
+  const loadTermsOfService = async () => {
+    try {
+      setLoading(true);
+      console.log('Loading Terms of Service...');
+      const intro = await getTermsOfServiceIntroduction();
+      const termsList = await getTermsOfServiceTerms();
+      console.log('Terms of Service loaded:', { intro, termsCount: termsList.length });
+      setIntroduction(intro);
+      setTerms(termsList);
+    } catch (error: any) {
+      console.error('Error loading Terms of Service:', error);
+      console.error('Error details:', error?.message);
+      // Show error message to user
+      setIntroduction('Error loading terms of service. Please check if seeder has been run.');
+      setTerms([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadContactDetails();
+    loadTermsOfService();
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Reload content - data is already loaded from function
-      // This is mainly for UI refresh
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Reload contact details and terms
+      await Promise.all([
+        loadContactDetails(),
+        loadTermsOfService()
+      ]);
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
       setRefreshing(false);
     }
   };
-
-  // Contact data
-  const contactData = [
-    {
-      icon: require('../../../assets/icons/phone.png'),
-      label: 'Phone number',
-      value: '07755112445',
-      buttonTitle: 'Call',
-      onPress: () => {},
-    },
-    {
-      icon: require('../../../assets/icons/email.png'),
-      label: 'Email',
-      value: 'example@gmail.com',
-      buttonTitle: 'Mail',
-      onPress: () => {},
-    },
-    {
-      icon: require('../../../assets/icons/web.png'),
-      label: 'Website',
-      value: 'example.com',
-      buttonTitle: 'Visit',
-      onPress: () => {},
-    },
-  ];
 
   return (
     <View style={styles.container}>
@@ -118,13 +161,20 @@ export default function TermsOfServiceScreen() {
 
         {/* Introduction */}
         <View style={styles.contentSection}>
-          <Text style={styles.introduction}>
-            {introduction}
-          </Text>
+          {loading ? (
+            <Text style={styles.introduction}>Loading...</Text>
+          ) : introduction ? (
+            <Text style={styles.introduction}>
+              {introduction}
+            </Text>
+          ) : (
+            <Text style={styles.introduction}>
+              No content available. Please run the seeder script.
+            </Text>
+          )}
 
           {/* Terms List */}
-       
-            {terms.map((term, index) => (
+          {!loading && terms.length > 0 && terms.map((term, index) => (
               <View key={index} style={styles.termItem}>
                 <View style={styles.termNumberContainer}>
                   <Text style={styles.termNumber}>{index + 1}.</Text>
@@ -135,7 +185,13 @@ export default function TermsOfServiceScreen() {
                 </View>
               </View>
             ))}
-          </View>
+
+          {!loading && terms.length === 0 && introduction && (
+            <Text style={styles.introduction}>
+              No terms available.
+            </Text>
+          )}
+        </View>
    
 
         {/* Contact us Section */}
@@ -143,7 +199,7 @@ export default function TermsOfServiceScreen() {
           <GroupedContactList data={contactData} />
         </View>
       </ScrollView>
-      <Footer />
+      
     </View>
   );
 }

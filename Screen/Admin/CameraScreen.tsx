@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, dummyCameras } from '../../api/Camera';
+import { Camera, getAllCameras } from '../../api/Camera';
 import { getTranslations } from '../../assets/Translation';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
@@ -104,6 +104,8 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, thumbnailUri, isLoading
 
 export default function CameraScreen() {
   const router = useRouter();
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
   const [t, setT] = useState(getTranslations('en'));
@@ -117,8 +119,24 @@ export default function CameraScreen() {
     }
   };
 
+  // Load cameras from API
+  const loadCameras = async () => {
+    try {
+      setLoading(true);
+      const camerasData = await getAllCameras();
+      setCameras(camerasData);
+    } catch (error: any) {
+      console.error('Error loading cameras:', error);
+      showErrorToast(error?.message || 'Failed to load cameras');
+      setCameras([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
+    loadCameras();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -130,7 +148,9 @@ export default function CameraScreen() {
   // Generate thumbnails for all cameras
   useEffect(() => {
     const generateThumbnails = async () => {
-      for (const camera of dummyCameras) {
+      if (!cameras || cameras.length === 0) return;
+      
+      for (const camera of cameras) {
         if (camera.camera_view && !thumbnails[camera._id]) {
           setLoadingThumbnails((prev) => ({ ...prev, [camera._id]: true }));
           try {
@@ -150,7 +170,7 @@ export default function CameraScreen() {
     };
 
     generateThumbnails();
-  }, [t]);
+  }, [cameras, t]);
 
   const handleCameraPress = (camera: Camera) => {
     router.push({
@@ -191,18 +211,29 @@ export default function CameraScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.gridContainer}>
-          {dummyCameras.map((camera) => (
-            <CameraCard
-              key={camera._id}
-              camera={camera}
-              thumbnailUri={thumbnails[camera._id] || null}
-              isLoading={loadingThumbnails[camera._id] || false}
-              onPress={() => handleCameraPress(camera)}
-              t={t}
-            />
-          ))}
-        </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading cameras...</Text>
+          </View>
+        ) : !cameras || cameras.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No cameras found</Text>
+          </View>
+        ) : (
+          <View style={styles.gridContainer}>
+            {cameras.map((camera) => (
+              <CameraCard
+                key={camera._id}
+                camera={camera}
+                thumbnailUri={thumbnails[camera._id] || null}
+                isLoading={loadingThumbnails[camera._id] || false}
+                onPress={() => handleCameraPress(camera)}
+                t={t}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
       <Footer_A />
       <Toast config={toastConfig} />
@@ -308,6 +339,29 @@ const styles = StyleSheet.create({
     fontWeight: fonts.weight.regular,
     color: colors.subtext,
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    color: colors.subtext,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  emptyText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.regular,
+    color: colors.subtext,
   },
 });
 

@@ -10,9 +10,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { dummyCameras, getActiveCameras } from '../../api/Camera';
-import { getActiveEmployees } from '../../api/Employee_active';
-import { dummyThreats } from '../../api/Threat';
+import { getAllCameras, getActiveCameras } from '../../api/Camera';
+import { getAllEmployeeActiveStatuses } from '../../api/employeeActive';
+import { getAllThreats } from '../../api/Threat';
 import { getUsersByRole, User } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
 import CartBox from '../../components/common/CartBox';
@@ -54,6 +54,9 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value }) => {
 export default function AdminScreen() {
   const [t, setT] = useState(getTranslations('en'));
   const [employees, setEmployees] = useState<User[]>([]);
+  const [cameras, setCameras] = useState<any[]>([]);
+  const [threats, setThreats] = useState<any[]>([]);
+  const [employeeActiveStatuses, setEmployeeActiveStatuses] = useState<any[]>([]);
   const [metrics, setMetrics] = useState({
     totalNVROnline: '12/13',
     cameraOnline: '0/0',
@@ -81,9 +84,42 @@ export default function AdminScreen() {
     }
   };
 
+  const loadCameras = async () => {
+    try {
+      const camerasData = await getAllCameras();
+      setCameras(camerasData);
+    } catch (error) {
+      console.error('Error loading cameras:', error);
+      setCameras([]);
+    }
+  };
+
+  const loadEmployeeActiveStatuses = async () => {
+    try {
+      const statuses = await getAllEmployeeActiveStatuses();
+      setEmployeeActiveStatuses(statuses);
+    } catch (error) {
+      console.error('Error loading employee active statuses:', error);
+      setEmployeeActiveStatuses([]);
+    }
+  };
+
+  const loadThreats = async () => {
+    try {
+      const threatsData = await getAllThreats();
+      setThreats(threatsData);
+    } catch (error) {
+      console.error('Error loading threats:', error);
+      setThreats([]);
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
     loadEmployees();
+    loadCameras();
+    loadEmployeeActiveStatuses();
+    loadThreats();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -94,15 +130,20 @@ export default function AdminScreen() {
 
   // Calculate metrics
   useEffect(() => {
+    if (!cameras || !employees || !employeeActiveStatuses || !threats) {
+      return; // Wait for data to load
+    }
+
     // Camera Online: Count of cameras where camera_status: true / total cameras
-    const activeCameras = getActiveCameras();
-    const totalCameras = dummyCameras.length;
+    const activeCameras = cameras.filter((cam) => cam.camera_status === true);
+    const totalCameras = cameras.length || 0;
     const cameraOnline = `${activeCameras.length}/${totalCameras}`;
 
     // Today's Total Alerts: Count of Threat objects where createdat is today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayAlerts = dummyThreats.filter((threat) => {
+    const todayAlerts = (threats || []).filter((threat) => {
+      if (!threat || !threat.createdat) return false;
       const threatDate = new Date(threat.createdat);
       threatDate.setHours(0, 0, 0, 0);
       return threatDate.getTime() === today.getTime();
@@ -110,15 +151,15 @@ export default function AdminScreen() {
     const todayAlertsCount = todayAlerts.length.toString();
 
     // Active Staff: Count of Employee_active where active_status: true AND role: employee
-    const activeEmployees = getActiveEmployees();
-    const activeStaffWithEmployeeRole = activeEmployees.filter((emp) => {
+    const activeStaffWithEmployeeRole = employeeActiveStatuses.filter((emp) => {
+      if (emp.active_status !== true) return false;
       const user = employees.find((u) => u.id === emp.user_id);
       return user && user.role === 'employee';
     });
     const activeStaffCount = activeStaffWithEmployeeRole.length;
 
     // Total Staff: Count of employees from API with role: employee
-    const totalStaff = employees.length;
+    const totalStaff = employees.length || 0;
 
     // Total NVR Online: Dummy number
     const totalNVROnline = '12/13';
@@ -133,7 +174,7 @@ export default function AdminScreen() {
       storageHealth,
       activeStaff: `${activeStaffCount}/${totalStaff}`,
     });
-  }, [employees]);
+  }, [cameras, employees, employeeActiveStatuses, threats]);
 
   return (
     <View style={styles.container}>

@@ -1,71 +1,113 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   Image,
-  RefreshControl,
   Platform,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Header from '../../../components/common/Header';
-import { GroupedContactList } from '../../../components/common/Contact';
-import Footer from '../../Footer';
+import { getContactDetails } from '../../../api/contact';
 import { getPrivacyPolicyIntroduction, getPrivacyPolicySections } from '../../../api/support_legal';
+import { ContactCardProps, GroupedContactList } from '../../../components/common/Contact';
+import Header from '../../../components/common/Header';
 import colors from '../../../styles/Colors';
 // @ts-ignore
-import fonts from '../../../styles/Fonts';
 
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const introduction = getPrivacyPolicyIntroduction();
-  const sections = getPrivacyPolicySections();
+  const [contactData, setContactData] = useState<ContactCardProps[]>([]);
+  const [introduction, setIntroduction] = useState<string>('');
+  const [sections, setSections] = useState<Array<{ title: string; bullets: string[] }>>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const handleBack = () => {
     router.back();
   };
 
+  // Load contact details from API
+  const loadContactDetails = async () => {
+    try {
+      const contact = await getContactDetails();
+      
+      // Create contact data array from API response
+      const contactList: ContactCardProps[] = [
+        {
+          icon: require('../../../assets/icons/phone.png'),
+          label: 'Phone number',
+          value: contact.phone,
+          buttonTitle: 'Call',
+          onPress: () => {},
+        },
+        {
+          icon: require('../../../assets/icons/email.png'),
+          label: 'Email',
+          value: contact.email,
+          buttonTitle: 'Mail',
+          onPress: () => {},
+        },
+        {
+          icon: require('../../../assets/icons/web.png'),
+          label: 'Website',
+          value: contact.website,
+          buttonTitle: 'Visit',
+          onPress: () => {},
+        },
+      ];
+      
+      setContactData(contactList);
+    } catch (error) {
+      console.error('Error loading contact details:', error);
+      // Set empty array if API fails - only backend data should be used
+      setContactData([]);
+    }
+  };
+
+  // Load Privacy Policy content from API
+  const loadPrivacyPolicy = async () => {
+    try {
+      setLoading(true);
+      console.log('Loading Privacy Policy...');
+      const intro = await getPrivacyPolicyIntroduction();
+      const sectionsList = await getPrivacyPolicySections();
+      console.log('Privacy Policy loaded:', { intro, sectionsCount: sectionsList.length });
+      setIntroduction(intro);
+      setSections(sectionsList);
+    } catch (error: any) {
+      console.error('Error loading Privacy Policy:', error);
+      console.error('Error details:', error?.message);
+      // Show error message to user
+      setIntroduction('Error loading privacy policy. Please check if seeder has been run.');
+      setSections([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadContactDetails();
+    loadPrivacyPolicy();
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Reload content - data is already loaded from function
-      // This is mainly for UI refresh
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Reload contact details and privacy policy
+      await Promise.all([
+        loadContactDetails(),
+        loadPrivacyPolicy()
+      ]);
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
       setRefreshing(false);
     }
   };
-
-  // Contact data
-  const contactData = [
-    {
-      icon: require('../../../assets/icons/phone.png'),
-      label: 'Phone number',
-      value: '07755112445',
-      buttonTitle: 'Call',
-      onPress: () => {},
-    },
-    {
-      icon: require('../../../assets/icons/email.png'),
-      label: 'Email',
-      value: 'example@gmail.com',
-      buttonTitle: 'Mail',
-      onPress: () => {},
-    },
-    {
-      icon: require('../../../assets/icons/web.png'),
-      label: 'Website',
-      value: 'example.com',
-      buttonTitle: 'Visit',
-      onPress: () => {},
-    },
-  ];
 
   return (
     <View style={styles.container}>
@@ -118,12 +160,20 @@ export default function PrivacyPolicyScreen() {
 
         {/* Introduction */}
         <View style={styles.contentSection}>
-          <Text style={styles.introduction}>
-            {introduction}
-          </Text>
+          {loading ? (
+            <Text style={styles.introduction}>Loading...</Text>
+          ) : introduction ? (
+            <Text style={styles.introduction}>
+              {introduction}
+            </Text>
+          ) : (
+            <Text style={styles.introduction}>
+              No content available. Please check console for errors.
+            </Text>
+          )}
 
           {/* Sections List */}
-          {sections.map((section, index) => (
+          {!loading && sections.length > 0 && sections.map((section, index) => (
             <View key={index} style={styles.sectionItem}>
               <View style={styles.sectionNumberContainer}>
                 <Text style={styles.sectionNumber}>{index + 1}.</Text>
@@ -139,6 +189,12 @@ export default function PrivacyPolicyScreen() {
               </View>
             </View>
           ))}
+
+          {!loading && sections.length === 0 && introduction && (
+            <Text style={styles.introduction}>
+              No sections available.
+            </Text>
+          )}
         </View>
 
         {/* Contact us Section */}
@@ -146,7 +202,7 @@ export default function PrivacyPolicyScreen() {
           <GroupedContactList data={contactData} />
         </View>
       </ScrollView>
-      <Footer />
+   
     </View>
   );
 }

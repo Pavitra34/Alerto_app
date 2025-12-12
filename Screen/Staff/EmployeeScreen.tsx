@@ -1,34 +1,35 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Image,
   Modal,
-  Pressable,
-  TextInput,
-  RefreshControl,
   Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { findTasksByUserId } from '../../api/Tasks';
-import { findThreatById, findThreatsByType } from '../../api/Threat';
 import { findCameraById } from '../../api/Camera';
+import { getEmployeeActiveStatus, setEmployeeActiveStatus } from '../../api/employeeActive';
+import { findTasksByUserId } from '../../api/Tasks';
+import { findThreatById } from '../../api/Threat';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import Popup from '../../components/common/Popup';
 import Toast, { showSuccessToast, toastConfig } from '../../components/common/Toast';
-import Footer from '../Footer';
 import colors from '../../styles/Colors';
+import Footer from '../Footer';
 // @ts-ignore
-import fonts from '../../styles/Fonts';
 import { getTranslations } from '../../assets/Translation';
+import fonts from '../../styles/Fonts';
 
 interface TaskWithThreat {
   taskId: string;
@@ -105,23 +106,44 @@ export default function EmployeeScreen() {
         const translations = getTranslations(storedLangId);
         setT(translations);
         
-        // Load active status from AsyncStorage
-        const activeStatusData = await AsyncStorage.getItem('userActiveStatus');
-        if (activeStatusData) {
-          const { isActive: storedIsActive, date: storedDate } = JSON.parse(activeStatusData);
-          // Get today's date in YYYY-MM-DD format
-          const today = new Date().toISOString().split('T')[0];
-          // If stored date is today, restore active status
-          if (storedDate === today && storedIsActive) {
-            setIsActive(true);
-            // Load tasks if user is active (pass userId directly to avoid state timing issues)
-            if (storedUserId) {
+        // Load active status from API
+        if (storedUserId) {
+          try {
+            const activeStatus = await getEmployeeActiveStatus(storedUserId);
+            if (activeStatus === true) {
+              setIsActive(true);
+              // Load tasks if user is active
               setTimeout(() => loadUserTasks(storedUserId), 100);
+              
+              // Also save to AsyncStorage for local state
+              const today = new Date().toISOString().split('T')[0];
+              await AsyncStorage.setItem('userActiveStatus', JSON.stringify({
+                isActive: true,
+                date: today
+              }));
+            } else {
+              setIsActive(false);
+              await AsyncStorage.removeItem('userActiveStatus');
             }
-          } else {
-            // If date is different, reset to inactive
-            setIsActive(false);
-            await AsyncStorage.removeItem('userActiveStatus');
+          } catch (error) {
+            console.error('Error loading active status from API:', error);
+            // Fallback to AsyncStorage if API fails
+            const activeStatusData = await AsyncStorage.getItem('userActiveStatus');
+            if (activeStatusData) {
+              const { isActive: storedIsActive, date: storedDate } = JSON.parse(activeStatusData);
+              const today = new Date().toISOString().split('T')[0];
+              if (storedDate === today && storedIsActive) {
+                setIsActive(true);
+                if (storedUserId) {
+                  setTimeout(() => loadUserTasks(storedUserId), 100);
+                }
+              } else {
+                setIsActive(false);
+                await AsyncStorage.removeItem('userActiveStatus');
+              }
+            } else {
+              setIsActive(false);
+            }
           }
         } else {
           setIsActive(false);
@@ -307,24 +329,37 @@ export default function EmployeeScreen() {
   };
 
   const handleConfirmActive = async () => {
-    setIsActive(true);
-    setShowConfirmPopup(false);
-    console.log('User went active');
-    
-    // Save active status to AsyncStorage with today's date
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      await AsyncStorage.setItem('userActiveStatus', JSON.stringify({
-        isActive: true,
-        date: today
-      }));
-      console.log('Active status saved to AsyncStorage');
-    } catch (error) {
-      console.error('Error saving active status:', error);
+    if (!userId) {
+      console.error('User ID not available');
+      return;
     }
-    
-    // Load tasks when user goes active
-    loadUserTasks();
+
+    try {
+      // Call API to set active status to true
+      await setEmployeeActiveStatus(userId, true);
+      
+      setIsActive(true);
+      setShowConfirmPopup(false);
+      console.log('User went active');
+      
+      // Save active status to AsyncStorage with today's date (for local state)
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        await AsyncStorage.setItem('userActiveStatus', JSON.stringify({
+          isActive: true,
+          date: today
+        }));
+        console.log('Active status saved to AsyncStorage');
+      } catch (error) {
+        console.error('Error saving active status to AsyncStorage:', error);
+      }
+      
+      // Load tasks when user goes active
+      loadUserTasks();
+    } catch (error) {
+      console.error('Error setting active status:', error);
+      // Show error toast if needed
+    }
   };
 
   const handleCancelActive = () => {
@@ -333,17 +368,30 @@ export default function EmployeeScreen() {
   };
 
   const handleConfirmInactive = async () => {
-    setIsActive(false);
-    setShowConfirmInactivePopup(false);
-    setUserTasks([]); // Clear tasks when going inactive
-    console.log('User went inactive');
-    
-    // Remove active status from AsyncStorage
+    if (!userId) {
+      console.error('User ID not available');
+      return;
+    }
+
     try {
-      await AsyncStorage.removeItem('userActiveStatus');
-      console.log('Active status removed from AsyncStorage');
+      // Call API to set active status to false
+      await setEmployeeActiveStatus(userId, false);
+      
+      setIsActive(false);
+      setShowConfirmInactivePopup(false);
+      setUserTasks([]); // Clear tasks when going inactive
+      console.log('User went inactive');
+      
+      // Remove active status from AsyncStorage
+      try {
+        await AsyncStorage.removeItem('userActiveStatus');
+        console.log('Active status removed from AsyncStorage');
+      } catch (error) {
+        console.error('Error removing active status from AsyncStorage:', error);
+      }
     } catch (error) {
-      console.error('Error removing active status:', error);
+      console.error('Error setting inactive status:', error);
+      // Show error toast if needed
     }
   };
 

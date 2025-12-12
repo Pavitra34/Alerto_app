@@ -2,95 +2,233 @@
 export interface Threat {
   _id: string;
   camera_id: string; // matches Camera _id from Camera.ts
-  threat_type: string; // example: "intruder", "fire", "motion"
-  threat_level: "High" | "Medium" | "Low"|string;
-  threat_status: boolean; // true = assigned, false = unassigned
+  camera_name?: string;
+  camera_location?: string;
+  threat_type: string; // example: "intruder", "fire", "motion", "Unauthorized Access"
+  threat_level: "low" | "medium" | "high" | "critical" | string;
+  threat_status: "pending" | "in_progress" | "resolved" | "dismissed" | string;
+  threat_description?: string;
+  threat_image?: string;
+  assigned_to?: string | null;
+  resolved_at?: string | null;
+  resolved_by?: string | null;
   createdat: string; // ISO date
   updatedat: string; // ISO date
 }
 
-// Dummy Threat Data (5 threats)
-// camera_ids link to cameras from Camera.ts (ids: "cam001", "cam002", "cam003")
-export const dummyThreats: Threat[] = [
-  {
-    _id: "threat001",
-    camera_id: "cam001", // Main Entrance Camera
-    threat_type: "Intruder",
-    threat_level: "High",
-    threat_status: true, // assigned
-    createdat: "2024-12-20T10:30:00.000Z",
-    updatedat: "2024-12-20T10:35:00.000Z",
-  },
-  {
-    _id: "threat002",
-    camera_id: "cam002", // Parking Lot Camera
-    threat_type: "motion",
-    threat_level: "High",
-    threat_status: false, // unassigned
-    createdat: "2024-12-20T11:15:00.000Z",
-    updatedat: "2024-12-20T11:20:00.000Z",
-  },
-  {
-    _id: "threat003",
-    camera_id: "cam003", // Warehouse Security Camera
-    threat_type: "Fire",
-    threat_level: "High",
-    threat_status: true, // assigned
-    createdat: "2024-12-20T13:45:00.000Z",
-    updatedat: "2024-12-20T13:50:00.000Z",
-  },
-  {
-    _id: "threat004",
-    camera_id: "cam001", // Main Entrance Camera
-    threat_type: "Motion",
-    threat_level: "Low",
-    threat_status: false, // unassigned
-    createdat: "2024-12-20T14:20:00.000Z",
-    updatedat: "2024-12-20T14:25:00.000Z",
-  },
-  {
-    _id: "threat005",
-    camera_id: "cam002", // Parking Lot Camera
-    threat_type: "Intruder",
-    threat_level: "Medium",
-    threat_status: true, // assigned
-    createdat: "2024-12-20T15:10:00.000Z",
-    updatedat: "2024-12-20T15:15:00.000Z",
-  },
-];
+// API Response Types
+export interface GetAllThreatsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    threats: Threat[];
+    count: number;
+  };
+}
 
-// Helper function to find threat by id
-export const findThreatById = (id: string): Threat | undefined => {
-  return dummyThreats.find((threat) => threat._id === id);
+export interface GetThreatByIdResponse {
+  success: boolean;
+  message: string;
+  data: {
+    threat: Threat;
+  };
+}
+
+// Get all threats from backend API
+export const getAllThreats = async (): Promise<Threat[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('threats');
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetAllThreatsResponse = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.threats.map((threat: any) => ({
+        _id: threat._id,
+        camera_id: threat.camera_id,
+        camera_name: threat.camera_name,
+        camera_location: threat.camera_location,
+        threat_type: threat.threat_type,
+        threat_level: threat.threat_level,
+        threat_status: threat.threat_status,
+        threat_description: threat.threat_description,
+        threat_image: threat.threat_image,
+        assigned_to: threat.assigned_to,
+        resolved_at: threat.resolved_at,
+        resolved_by: threat.resolved_by,
+        createdat: threat.createdat || new Date().toISOString(),
+        updatedat: threat.updatedat || new Date().toISOString(),
+      }));
+    } else {
+      throw new Error(data.message || 'Failed to get threats');
+    }
+  } catch (error: any) {
+    console.error('Get all threats API error:', error);
+    throw error;
+  }
 };
 
-// Helper function to find threats by camera_id
-export const findThreatsByCameraId = (cameraId: string): Threat[] => {
-  return dummyThreats.filter((threat) => threat.camera_id === cameraId);
+// Get threat by ID from backend API
+export const findThreatById = async (id: string): Promise<Threat | null> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl(`threats/${id}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetThreatByIdResponse = await response.json();
+
+    if (data.success && data.data) {
+      const threat = data.data.threat;
+      return {
+        _id: threat._id,
+        camera_id: threat.camera_id,
+        camera_name: threat.camera_name,
+        camera_location: threat.camera_location,
+        threat_type: threat.threat_type,
+        threat_level: threat.threat_level,
+        threat_status: threat.threat_status,
+        threat_description: threat.threat_description,
+        threat_image: threat.threat_image,
+        assigned_to: threat.assigned_to,
+        resolved_at: threat.resolved_at,
+        resolved_by: threat.resolved_by,
+        createdat: threat.createdat || new Date().toISOString(),
+        updatedat: threat.updatedat || new Date().toISOString(),
+      };
+    } else {
+      throw new Error(data.message || 'Failed to get threat');
+    }
+  } catch (error: any) {
+    console.error('Get threat by ID API error:', error);
+    throw error;
+  }
+};
+
+// Get threats by status from backend API
+export const getThreatsByStatus = async (status: string): Promise<Threat[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl(`threats/status/${status}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetAllThreatsResponse = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.threats.map((threat: any) => ({
+        _id: threat._id,
+        camera_id: threat.camera_id,
+        camera_name: threat.camera_name,
+        camera_location: threat.camera_location,
+        threat_type: threat.threat_type,
+        threat_level: threat.threat_level,
+        threat_status: threat.threat_status,
+        threat_description: threat.threat_description,
+        threat_image: threat.threat_image,
+        assigned_to: threat.assigned_to,
+        resolved_at: threat.resolved_at,
+        resolved_by: threat.resolved_by,
+        createdat: threat.createdat || new Date().toISOString(),
+        updatedat: threat.updatedat || new Date().toISOString(),
+      }));
+    } else {
+      throw new Error(data.message || 'Failed to get threats by status');
+    }
+  } catch (error: any) {
+    console.error('Get threats by status API error:', error);
+    throw error;
+  }
+};
+
+// Get threats by camera ID from backend API
+export const findThreatsByCameraId = async (cameraId: string): Promise<Threat[]> => {
+  try {
+    const allThreats = await getAllThreats();
+    return allThreats.filter((threat) => threat.camera_id === cameraId);
+  } catch (error: any) {
+    console.error('Get threats by camera ID API error:', error);
+    throw error;
+  }
 };
 
 // Helper function to find threats by threat_type
-export const findThreatsByType = (threatType: string): Threat[] => {
-  return dummyThreats.filter((threat) => threat.threat_type === threatType);
+export const findThreatsByType = async (threatType: string): Promise<Threat[]> => {
+  try {
+    const allThreats = await getAllThreats();
+    return allThreats.filter((threat) => threat.threat_type === threatType);
+  } catch (error: any) {
+    console.error('Get threats by type API error:', error);
+    throw error;
+  }
 };
 
 // Helper function to find threats by threat_level
-export const findThreatsByLevel = (level: "High" | "Medium" | "Low"): Threat[] => {
-  return dummyThreats.filter((threat) => threat.threat_level === level);
+export const findThreatsByLevel = async (level: string): Promise<Threat[]> => {
+  try {
+    const allThreats = await getAllThreats();
+    return allThreats.filter((threat) => threat.threat_level === level);
+  } catch (error: any) {
+    console.error('Get threats by level API error:', error);
+    throw error;
+  }
 };
 
-// Helper function to find threats by threat_status
-export const findThreatsByStatus = (status: boolean): Threat[] => {
-  return dummyThreats.filter((threat) => threat.threat_status === status);
+// Helper function to find threats by threat_status (for backward compatibility)
+export const findThreatsByStatus = async (status: string): Promise<Threat[]> => {
+  return await getThreatsByStatus(status);
 };
 
-// Helper function to get all assigned threats
-export const getAssignedThreats = (): Threat[] => {
-  return dummyThreats.filter((threat) => threat.threat_status === true);
+// Helper function to get all assigned threats (threats with assigned_to not null)
+export const getAssignedThreats = async (): Promise<Threat[]> => {
+  try {
+    const allThreats = await getAllThreats();
+    return allThreats.filter((threat) => threat.assigned_to !== null && threat.assigned_to !== undefined);
+  } catch (error: any) {
+    console.error('Get assigned threats API error:', error);
+    throw error;
+  }
 };
 
-// Helper function to get all unassigned threats
-export const getUnassignedThreats = (): Threat[] => {
-  return dummyThreats.filter((threat) => threat.threat_status === false);
+// Helper function to get all unassigned threats (threats with assigned_to null)
+export const getUnassignedThreats = async (): Promise<Threat[]> => {
+  try {
+    const allThreats = await getAllThreats();
+    return allThreats.filter((threat) => !threat.assigned_to || threat.assigned_to === null);
+  } catch (error: any) {
+    console.error('Get unassigned threats API error:', error);
+    throw error;
+  }
 };
-

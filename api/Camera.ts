@@ -9,49 +9,177 @@ export interface Camera {
   updatedat: string; // ISO date
 }
 
-// Dummy Camera Data (3 cameras)
-export const dummyCameras: Camera[] = [
-  {
-    _id: "cam001",
-    name: "Main Entrance Camera",
-    location: "Building A",
-    camera_status: true,
-    camera_view: "https://youtu.be/aKOd6fwNRqQ",
-    createdat: "2024-01-15T08:30:00.000Z",
-    updatedat: "2024-12-20T14:45:00.000Z",
-  },
-  {
-    _id: "cam002",
-    name: "Parking Lot Camera",
-    location: "Building B - Parking Lot North",
-    camera_status: true,
-    camera_view: "https://youtu.be/aKOd6fwNRqQ",
-    createdat: "2024-02-10T10:15:00.000Z",
-    updatedat: "2024-12-19T09:20:00.000Z",
-  },
-  {
-    _id: "cam003",
-    name: "Warehouse Security Camera",
-    location: "Building C - Warehouse Section 3",
-    camera_status: false,
-    camera_view: "https://youtu.be/aKOd6fwNRqQ",
-    createdat: "2024-03-05T12:00:00.000Z",
-    updatedat: "2024-12-18T16:30:00.000Z",
-  },
-];
+// API Response Types
+export interface GetAllCamerasResponse {
+  success: boolean;
+  message: string;
+  data: {
+    cameras: Camera[];
+    count: number;
+  };
+}
 
-// Helper function to find camera by id
-export const findCameraById = (id: string): Camera | undefined => {
-  return dummyCameras.find((camera) => camera._id === id);
+export interface GetCameraByIdResponse {
+  success: boolean;
+  message: string;
+  data: {
+    camera: Camera;
+  };
+}
+
+// Get all cameras from backend API
+export const getAllCameras = async (): Promise<Camera[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('cameras');
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetAllCamerasResponse = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.cameras.map((cam: any) => ({
+        _id: cam._id,
+        name: cam.name,
+        location: cam.location,
+        camera_status: cam.camera_status,
+        camera_view: cam.camera_view,
+        createdat: cam.createdat || new Date().toISOString(),
+        updatedat: cam.updatedat || new Date().toISOString(),
+      } as Camera));
+    } else {
+      throw new Error(data.message || 'Failed to get cameras');
+    }
+  } catch (error: any) {
+    console.error('Get all cameras API error:', error);
+    throw error;
+  }
 };
 
-// Helper function to get all active cameras
-export const getActiveCameras = (): Camera[] => {
-  return dummyCameras.filter((camera) => camera.camera_status === true);
+// Get camera by ID from backend API
+export const findCameraById = async (id: string): Promise<Camera | null> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl(`cameras/${id}`);
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetCameraByIdResponse = await response.json();
+
+    if (data.success && data.data) {
+      const cam = data.data.camera;
+      return {
+        _id: cam._id,
+        name: cam.name,
+        location: cam.location,
+        camera_status: cam.camera_status,
+        camera_view: cam.camera_view,
+        createdat: cam.createdat || new Date().toISOString(),
+        updatedat: cam.updatedat || new Date().toISOString(),
+      };
+    } else {
+      throw new Error(data.message || 'Failed to get camera');
+    }
+  } catch (error: any) {
+    console.error('Get camera by ID API error:', error);
+    throw error;
+  }
 };
 
-// Helper function to get all inactive cameras
-export const getInactiveCameras = (): Camera[] => {
-  return dummyCameras.filter((camera) => camera.camera_status === false);
+// Get all active cameras from backend API
+export const getActiveCameras = async (): Promise<Camera[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('cameras/active');
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetAllCamerasResponse = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.cameras.map((cam: any) => ({
+        _id: cam._id,
+        name: cam.name,
+        location: cam.location,
+        camera_status: cam.camera_status,
+        camera_view: cam.camera_view,
+        createdat: cam.createdat || new Date().toISOString(),
+        updatedat: cam.updatedat || new Date().toISOString(),
+      }));
+    } else {
+      throw new Error(data.message || 'Failed to get active cameras');
+    }
+  } catch (error: any) {
+    console.error('Get active cameras API error:', error);
+    throw error;
+  }
+};
+
+// Get all inactive cameras from backend API
+export const getInactiveCameras = async (): Promise<Camera[]> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('cameras/inactive');
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetAllCamerasResponse = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.cameras.map((cam: any) => ({
+        _id: cam._id,
+        name: cam.name,
+        location: cam.location,
+        camera_status: cam.camera_status,
+        camera_view: cam.camera_view,
+        createdat: cam.createdat || new Date().toISOString(),
+        updatedat: cam.updatedat || new Date().toISOString(),
+      }));
+    } else {
+      throw new Error(data.message || 'Failed to get inactive cameras');
+    }
+  } catch (error: any) {
+    console.error('Get inactive cameras API error:', error);
+    throw error;
+  }
 };
 

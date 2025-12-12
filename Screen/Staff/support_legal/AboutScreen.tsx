@@ -1,19 +1,18 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
   Image,
-  RefreshControl,
   Platform,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Header from '../../../components/common/Header';
-import Footer from '../../Footer';
 import { getAboutUsParagraphs } from '../../../api/support_legal';
+import Header from '../../../components/common/Header';
 import colors from '../../../styles/Colors';
 // @ts-ignore
 import fonts from '../../../styles/Fonts';
@@ -21,18 +20,36 @@ import fonts from '../../../styles/Fonts';
 export default function AboutScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const paragraphs = getAboutUsParagraphs();
+  const [paragraphs, setParagraphs] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const handleBack = () => {
     router.back();
   };
 
+  // Load About Us content from API
+  const loadAboutUs = async () => {
+    try {
+      setLoading(true);
+      const paragraphsList = await getAboutUsParagraphs();
+      setParagraphs(paragraphsList);
+    } catch (error) {
+      console.error('Error loading About Us:', error);
+      setParagraphs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAboutUs();
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Reload content - data is already loaded from function
-      // This is mainly for UI refresh
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Reload About Us content
+      await loadAboutUs();
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
@@ -97,7 +114,7 @@ export default function AboutScreen() {
           ))}
         </View>
       </ScrollView>
-      <Footer />
+     
     </View>
   );
 }
