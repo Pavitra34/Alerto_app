@@ -188,30 +188,36 @@ export default function ProfileScreen() {
     try {
       // Get languageId before clearing storage
       const langId = await AsyncStorage.getItem('langId') || 'en';
-      console.log('Logout - LanguageId to be passed:', langId);
       
       // Get current values before clearing
       const currentUserId = await AsyncStorage.getItem('userId');
       const currentToken = await AsyncStorage.getItem('authToken');
-      console.log('Logout - Current userId:', currentUserId);
-      console.log('Logout - Current token:', currentToken);
       
-      // Clear userId and token, but keep languageId
+      console.log('\n🚪 ========== LOGOUT ==========');
+      console.log('👤 User ID:', currentUserId);
+      console.log('🔑 Token (before removal):', currentToken);
+      console.log('🌐 Language ID (preserved):', langId);
+      
+      // Clear all user-related data, but keep languageId
       await AsyncStorage.removeItem('userId');
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userObj');
-      console.log('Logout - Cleared userId, authToken, and userObj');
-      console.log('Logout - LanguageId preserved:', langId);
+      await AsyncStorage.removeItem('userActiveStatus'); // Also clear active status
+      
+      // Verify token is removed
+      const tokenAfterRemoval = await AsyncStorage.getItem('authToken');
+      console.log('🔑 Token (after removal):', tokenAfterRemoval || '✅ Removed');
+      console.log('✅ All user data cleared from AsyncStorage');
+      console.log('===================================\n');
       
       // Navigate to login screen with languageId as parameter
       const navigationParams = {
         pathname: '/login' as any,
         params: { langId: langId }
       };
-      console.log('Logout - Navigating to login with params:', navigationParams);
       router.replace(navigationParams as any);
     } catch (error) {
-      console.error('Error during logout:', error);
+      console.error('❌ Error during logout:', error);
       // Still navigate even if clearing storage fails
       router.replace('/login');
     }

@@ -161,6 +161,18 @@ export default function LoginScreen() {
       if (loginResult) {
         const { user, token, fullUser } = loginResult;
 
+        // Log token in terminal for testing
+        console.log('\n🔑 ========== LOGIN SUCCESS ==========');
+        console.log('📧 Email/Username:', emailOrUsername);
+        console.log('👤 User ID:', user.id);
+        console.log('👤 Username:', fullUser.username);
+        console.log('👤 Fullname:', fullUser.fullname);
+        console.log('👤 Role:', fullUser.role);
+        console.log('🔑 Token:', token);
+        console.log('📋 Token (for Authorization header):');
+        console.log('   Bearer ' + token);
+        console.log('=====================================\n');
+
         // Save token and userId to AsyncStorage
         try {
           await AsyncStorage.setItem('authToken', token);
@@ -168,6 +180,8 @@ export default function LoginScreen() {
           
           // Save full user object
           await AsyncStorage.setItem('userObj', JSON.stringify(fullUser));
+          
+          console.log('✅ Token and user data saved to AsyncStorage');
         } catch (storageError) {
           console.error('Error saving to storage:', storageError);
           showErrorToast(t.failedToSaveUserData);
@@ -266,7 +280,7 @@ export default function LoginScreen() {
             <InputBox
               label={t.password}
               placeholder={t.passwordPlaceholder}
-              secureTextEntry={!showPassword}
+              //secureTextEntry={!showPassword}
               value={password}
               setValue={handlePasswordChange}
               errorMessage={passwordError}

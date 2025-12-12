@@ -90,7 +90,7 @@ export const getUserById = async (id: string): Promise<User | null> => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-      },
+  },
     });
 
     if (!response.ok) {

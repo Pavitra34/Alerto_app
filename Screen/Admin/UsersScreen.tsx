@@ -15,17 +15,16 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAllEmployeeActiveStatuses } from '../../api/employeeActive';
+import { getUsersByRole, User } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
 import colors from '../../styles/Colors';
-import Footer_A from '../Footer_A';
-// @ts-ignore
-import { dummyEmployeeActive } from '../../api/Employee_active';
-import { getUsersByRole, User } from '../../api/users';
 import fonts from '../../styles/Fonts';
+import Footer_A from '../Footer_A';
 
 interface UserWithStatus extends User {
   activeStatus: boolean | null; // null if no active status found
@@ -40,6 +39,7 @@ export default function UsersScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [employees, setEmployees] = useState<User[]>([]);
+  const [employeeActiveStatuses, setEmployeeActiveStatuses] = useState<Map<string, boolean>>(new Map());
   const [t, setT] = useState(getTranslations('en'));
   const insets = useSafeAreaInsets();
 
@@ -66,9 +66,26 @@ export default function UsersScreen() {
     }
   };
 
+  // Load employee active statuses from API
+  const loadEmployeeActiveStatuses = async () => {
+    try {
+      const statuses = await getAllEmployeeActiveStatuses();
+      // Create a map for quick lookup: user_id -> active_status
+      const statusMap = new Map<string, boolean>();
+      statuses.forEach(status => {
+        statusMap.set(status.user_id, status.active_status);
+      });
+      setEmployeeActiveStatuses(statusMap);
+    } catch (error) {
+      console.error('Error loading employee active statuses:', error);
+      setEmployeeActiveStatuses(new Map());
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
     loadEmployees();
+    loadEmployeeActiveStatuses();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -77,38 +94,23 @@ export default function UsersScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Combine users with their active status (only employees, current date only)
+  // Combine users with their active status from database
   const usersWithStatus: UserWithStatus[] = useMemo(() => {
     // Safety check for employees array
     if (!employees || employees.length === 0) {
       return [];
     }
 
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split('T')[0];
-
-    // Safety check for dummyEmployeeActive
-    const activeStatuses = dummyEmployeeActive || [];
-
     return employees.map((user) => {
-      // Find all active status entries for this user
-      const allActiveStatuses = activeStatuses.filter(
-        (emp) => emp && emp.user_id === user.id
-      );
-
-      // Find the entry that matches today's date
-      const todayActiveStatus = allActiveStatuses.find((emp) => {
-        if (!emp || !emp.updatedat) return false;
-        const empDate = new Date(emp.updatedat).toISOString().split('T')[0];
-        return empDate === today;
-      });
-
+      // Get active status from API data (statusMap)
+      const activeStatus = employeeActiveStatuses.get(user.id);
+      
       return {
         ...user,
-        activeStatus: todayActiveStatus ? todayActiveStatus.active_status : null,
+        activeStatus: activeStatus !== undefined ? activeStatus : null,
       };
     });
-  }, [employees]);
+  }, [employees, employeeActiveStatuses]);
 
   // Filter users based on search query and status
   const filteredUsers = useMemo(() => {
@@ -165,8 +167,11 @@ export default function UsersScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Reload employees from API
-      await loadEmployees();
+      // Reload employees and active statuses from API
+      await Promise.all([
+        loadEmployees(),
+        loadEmployeeActiveStatuses()
+      ]);
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
