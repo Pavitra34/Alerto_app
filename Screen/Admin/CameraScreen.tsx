@@ -38,7 +38,8 @@ interface CameraCardProps {
 }
 
 const CameraCard: React.FC<CameraCardProps> = ({ camera, thumbnailUri, isLoading, onPress, t }) => {
-  const isLive = camera.camera_status;
+  // Always show Live badge for all cameras
+  const isLive = true;
 
   return (
     <TouchableOpacity
@@ -72,7 +73,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, thumbnailUri, isLoading
               <ActivityIndicator size="small" color={colors.primary} />
             </View>
           )}
-          {/* Live Badge Overlay */}
+          {/* Live Badge Overlay - Always show for all cameras */}
           {isLive && (
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
@@ -106,7 +107,7 @@ export default function CameraScreen() {
   const router = useRouter();
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
   const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
   const [t, setT] = useState(getTranslations('en'));
 
@@ -145,6 +146,35 @@ export default function CameraScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Helper function to extract YouTube video ID from URL
+  const getYouTubeVideoId = (url: string): string | null => {
+    if (!url) return null;
+    
+    // Handle different YouTube URL formats
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
+      /youtube\.com\/embed\/([^&\n?#]+)/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  };
+
+  // Helper function to get YouTube thumbnail URL
+  const getYouTubeThumbnail = (url: string): string | null => {
+    const videoId = getYouTubeVideoId(url);
+    if (!videoId) return null;
+    
+    // Use YouTube's thumbnail API
+    return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  };
+
   // Generate thumbnails for all cameras
   useEffect(() => {
     const generateThumbnails = async () => {
@@ -154,14 +184,35 @@ export default function CameraScreen() {
         if (camera.camera_view && !thumbnails[camera._id]) {
           setLoadingThumbnails((prev) => ({ ...prev, [camera._id]: true }));
           try {
-            const { uri } = await VideoThumbnails.getThumbnailAsync(camera.camera_view, {
-              time: 1000, // Get thumbnail at 1 second
-              quality: 0.7,
-            });
-            setThumbnails((prev) => ({ ...prev, [camera._id]: uri }));
+            // Check if it's a YouTube URL
+            const isYouTube = camera.camera_view.includes('youtube.com') || camera.camera_view.includes('youtu.be');
+            
+            if (isYouTube) {
+              // Use YouTube thumbnail
+              const youtubeThumbnail = getYouTubeThumbnail(camera.camera_view);
+              if (youtubeThumbnail) {
+                setThumbnails((prev) => ({ ...prev, [camera._id]: youtubeThumbnail }));
+              } else {
+                // Fallback if YouTube ID extraction fails
+                setThumbnails((prev) => ({ ...prev, [camera._id]: null }));
+              }
+            } else {
+              // For non-YouTube videos, try to generate thumbnail
+              try {
+                const { uri } = await VideoThumbnails.getThumbnailAsync(camera.camera_view, {
+                  time: 1000, // Get thumbnail at 1 second
+                  quality: 0.7,
+                });
+                setThumbnails((prev) => ({ ...prev, [camera._id]: uri }));
+              } catch (videoError) {
+                // If thumbnail generation fails, try to use the URL directly as image
+                setThumbnails((prev) => ({ ...prev, [camera._id]: camera.camera_view }));
+              }
+            }
           } catch (error) {
-            // Show error toast when thumbnail generation fails
-            showErrorToast(t?.unableToLoadCameraPreview || 'Unable to load camera preview');
+            console.error('Error generating thumbnail for camera:', camera._id, error);
+            // Try to use the URL directly as fallback
+            setThumbnails((prev) => ({ ...prev, [camera._id]: camera.camera_view }));
           } finally {
             setLoadingThumbnails((prev) => ({ ...prev, [camera._id]: false }));
           }

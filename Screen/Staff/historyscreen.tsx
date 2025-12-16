@@ -1,24 +1,29 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+  ActivityIndicator,
   Image,
-  RefreshControl,
   Platform,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Header from '../../components/common/Header';
+import { findCameraById } from '../../api/Camera';
+import { findTasksByUserId, ReportMessageEntry } from '../../api/tasks';
+import { findThreatById } from '../../api/Threat';
 import CartBox from '../../components/common/CartBox';
-import Footer from '../Footer';
+import Header from '../../components/common/Header';
 import colors from '../../styles/Colors';
+import Footer from '../Footer';
 // @ts-ignore
-import fonts from '../../styles/Fonts';
 import { getTranslations } from '../../assets/Translation';
+import fonts from '../../styles/Fonts';
 
 interface AlertResponse {
   id: string;
@@ -42,11 +47,204 @@ interface AlertResponse {
 
 export default function HistoryScreen() {
   const params = useLocalSearchParams();
+  const router = useRouter();
   const [langId, setLangId] = useState<string>('en');
   const [userId, setUserId] = useState<string>('');
   const [alertHistory, setAlertHistory] = useState<AlertResponse[]>([]);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [t, setT] = useState(getTranslations('en'));
+  const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
+  const [thumbnailLoading, setThumbnailLoading] = useState<Record<string, boolean>>({});
+
+  // Load reviewed tasks from database
+  const loadReviewedTasks = async (currentUserId: string) => {
+    try {
+      // Get all tasks for this user
+      const allTasks = await findTasksByUserId(currentUserId);
+      
+      // Strictly filter tasks where:
+      // 1. review_status = true (task has been reviewed)
+      // 2. user_id is in user_ids array (task is assigned to this user)
+      // 3. report_message exists and contains a message from this user
+      const reviewedTasks = allTasks.filter(task => {
+        // Check review_status is true
+        if (task.review_status !== true) {
+          return false;
+        }
+        
+        // Check user_id is in user_ids array
+        if (!task.user_ids || !task.user_ids.includes(currentUserId)) {
+          return false;
+        }
+        
+        // Check if this user has a report message
+        const userReport = task.report_message?.find((msg: ReportMessageEntry) => msg.user_id === currentUserId);
+        if (!userReport || !userReport.message) {
+          return false;
+        }
+        
+        return true;
+      });
+      
+      if (reviewedTasks.length === 0) {
+        setAlertHistory([]);
+        return;
+      }
+
+      // For each reviewed task, get threat and camera details
+      const historyPromises = reviewedTasks.map(async (task) => {
+        try {
+          const threat = await findThreatById(task.threat_id);
+          if (!threat) return null;
+
+          const camera = await findCameraById(threat.camera_id);
+          if (!camera) return null;
+
+          // Get the report message for this user from the task
+          const userReport = task.report_message?.find((msg: ReportMessageEntry) => msg.user_id === currentUserId);
+          
+          // If no report message found, skip this task
+          if (!userReport || !userReport.message) {
+            return null;
+          }
+          
+          // Format reviewed_time
+          const reviewedTime = userReport.reviewed_time ? new Date(userReport.reviewed_time) : new Date(task.updatedat);
+          const responseTime = reviewedTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          const responseDate = reviewedTime.toISOString().split('T')[0];
+
+          // Determine alert type from message (if it contains "true" or "false" keywords)
+          // This is a simple heuristic - you might need to adjust based on your actual message format
+          const message = userReport.message;
+          const alertType: 'true' | 'false' = message.toLowerCase().includes('false') ? 'false' : 'true';
+
+          const historyItem: AlertResponse = {
+            id: task._id,
+            responseTime: responseTime,
+            responseDate: responseDate,
+            taskId: task._id,
+            threatId: threat._id,
+            threatType: threat.threat_type,
+            threatLevel: threat.threat_level,
+            cameraId: camera._id,
+            cameraName: camera.name,
+            cameraLocation: camera.location,
+            cameraView: camera.camera_view,
+            threatCreatedAt: threat.createdat,
+            alertType: alertType,
+            selectedOption: message, // Use the message as selectedOption
+            customInput: message.includes('Other') ? message : '',
+            fullResponse: message,
+            userId: currentUserId
+          };
+
+          return historyItem;
+        } catch (error) {
+          console.error('Error loading task details:', error);
+          return null;
+        }
+      });
+
+      const historyResults = await Promise.all(historyPromises);
+      const validHistory = historyResults.filter((item): item is AlertResponse => item !== null);
+      
+      // Sort by reviewed time (newest first)
+      validHistory.sort((a, b) => {
+        const dateA = new Date(a.responseDate + ' ' + a.responseTime).getTime();
+        const dateB = new Date(b.responseDate + ' ' + b.responseTime).getTime();
+        return dateB - dateA;
+      });
+
+      setAlertHistory(validHistory);
+    } catch (error) {
+      console.error('Error loading reviewed tasks:', error);
+      setAlertHistory([]);
+    }
+  };
+
+  // Helper function to extract YouTube video ID from URL
+  const getYouTubeVideoId = (url: string): string | null => {
+    if (!url) return null;
+    
+    // Handle different YouTube URL formats
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
+      /youtube\.com\/embed\/([^&\n?#]+)/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  };
+
+  // Helper function to get YouTube thumbnail URL
+  const getYouTubeThumbnail = (url: string): string | null => {
+    const videoId = getYouTubeVideoId(url);
+    if (!videoId) return null;
+    
+    // Use YouTube's thumbnail API
+    return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  };
+
+  // Generate thumbnails for all history items
+  useEffect(() => {
+    const generateThumbnails = async () => {
+      if (!alertHistory || alertHistory.length === 0) return;
+      
+      for (const response of alertHistory) {
+        if (response.cameraView && !thumbnails[response.id]) {
+          setThumbnailLoading((prev) => ({ ...prev, [response.id]: true }));
+          try {
+            // Check if it's a YouTube URL
+            const isYouTube = response.cameraView.includes('youtube.com') || response.cameraView.includes('youtu.be');
+            
+            if (isYouTube) {
+              // Use YouTube thumbnail
+              const youtubeThumbnail = getYouTubeThumbnail(response.cameraView);
+              if (youtubeThumbnail) {
+                setThumbnails((prev) => ({ ...prev, [response.id]: youtubeThumbnail }));
+              } else {
+                setThumbnails((prev) => ({ ...prev, [response.id]: null }));
+              }
+            } else {
+              // For non-YouTube videos, use the URL directly
+              setThumbnails((prev) => ({ ...prev, [response.id]: response.cameraView }));
+            }
+          } catch (error) {
+            console.error('Error generating thumbnail for history item:', response.id, error);
+            setThumbnails((prev) => ({ ...prev, [response.id]: null }));
+          } finally {
+            setThumbnailLoading((prev) => ({ ...prev, [response.id]: false }));
+          }
+        }
+      }
+    };
+    
+    generateThumbnails();
+  }, [alertHistory]);
+
+  // Handle thumbnail press - navigate to full screen view
+  const handleThumbnailPress = (response: AlertResponse) => {
+    router.push({
+      pathname: '/camera-view',
+      params: {
+        cameraId: response.cameraId,
+        cameraName: response.cameraName,
+        cameraView: response.cameraView || '',
+        cameraLocation: response.cameraLocation || '',
+        cameraStatus: 'true',
+      },
+    } as any);
+  };
 
   useEffect(() => {
     // Get params or load from AsyncStorage
@@ -59,31 +257,10 @@ export default function HistoryScreen() {
         setUserId(storedUserId);
         setT(getTranslations(storedLangId));
         
-        // Load alert history only if userId is available
+        // Load reviewed tasks from database if userId is available
         if (storedUserId) {
-          const historyData = await AsyncStorage.getItem('alertHistory');
-          if (historyData) {
-            const history: AlertResponse[] = JSON.parse(historyData);
-            // Filter by userId
-            const userHistory = history.filter(h => h.userId === storedUserId);
-            
-            // Filter to show only today's history
-            const today = new Date();
-            const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-            
-            const todayHistory = userHistory.filter(h => {
-              // Check if responseDate matches today (handle both old and new format)
-              const responseDate = h.responseDate || new Date(h.threatCreatedAt).toISOString().split('T')[0];
-              return responseDate === todayDateString;
-            });
-            
-            setAlertHistory(todayHistory);
-          } else {
-            setAlertHistory([]);
-          }
+          await loadReviewedTasks(storedUserId);
         }
-        
-        //console.log('History Screen - langId:', storedLangId, 'userId:', storedUserId);
       } catch (error) {
         console.error('Error loading history data:', error);
       }
@@ -95,34 +272,7 @@ export default function HistoryScreen() {
   // Refresh history when userId changes (but not when params change)
   useEffect(() => {
     if (!userId) return;
-
-    const refreshHistory = async () => {
-      try {
-        const historyData = await AsyncStorage.getItem('alertHistory');
-        if (historyData) {
-          const history: AlertResponse[] = JSON.parse(historyData);
-          const userHistory = history.filter(h => h.userId === userId);
-          
-          // Filter to show only today's history
-          const today = new Date();
-          const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-          
-          const todayHistory = userHistory.filter(h => {
-            // Check if responseDate matches today (handle both old and new format)
-            const responseDate = h.responseDate || new Date(h.threatCreatedAt).toISOString().split('T')[0];
-            return responseDate === todayDateString;
-          });
-          
-          setAlertHistory(todayHistory);
-        } else {
-          setAlertHistory([]);
-        }
-      } catch (error) {
-        console.error('Error refreshing history:', error);
-      }
-    };
-
-    refreshHistory();
+    loadReviewedTasks(userId);
   }, [userId]);
 
   // Update translations when langId changes
@@ -133,26 +283,7 @@ export default function HistoryScreen() {
   const loadHistory = async () => {
     try {
       if (!userId) return;
-      
-      const historyData = await AsyncStorage.getItem('alertHistory');
-      if (historyData) {
-        const history: AlertResponse[] = JSON.parse(historyData);
-        const userHistory = history.filter(h => h.userId === userId);
-        
-        // Filter to show only today's history
-        const today = new Date();
-        const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-        
-        const todayHistory = userHistory.filter(h => {
-          // Check if responseDate matches today (handle both old and new format)
-          const responseDate = h.responseDate || new Date(h.threatCreatedAt).toISOString().split('T')[0];
-          return responseDate === todayDateString;
-        });
-        
-        setAlertHistory(todayHistory);
-      } else {
-        setAlertHistory([]);
-      }
+      await loadReviewedTasks(userId);
     } catch (error) {
       console.error('Error loading history:', error);
     }
@@ -176,14 +307,25 @@ export default function HistoryScreen() {
 
   const getThreatLevelColor = (threatLevel?: string): string => {
     const level = threatLevel?.toLowerCase() || '';
-    if (level === 'high') {
-      return '#FF3B30'; // Red
+    if (level === 'high' || level === 'critical') {
+      return '#FF0000'; // Red
     } else if (level === 'medium') {
-      return '#FF9800'; // Orange
+      return '#F76800'; // Orange
     } else if (level === 'low') {
       return '#4CAF50'; // Green
     }
-    return '#FF3B30'; // Default to red
+    return '#FF0000'; // Default to red
+  };
+
+  const formatThreatLevel = (level?: string): string => {
+    if (!level) return 'High';
+    const levelLower = level.toLowerCase();
+    // Handle critical as high
+    if (levelLower === 'critical') {
+      return 'High';
+    }
+    // Capitalize first letter, lowercase rest
+    return levelLower.charAt(0).toUpperCase() + levelLower.slice(1);
   };
 
   const formatThreatDate = (dateString: string) => {
@@ -283,20 +425,35 @@ export default function HistoryScreen() {
                 </View>
 
                 {/* Video Thumbnail */}
-                <View style={styles.videoContainer}>
-                  <View style={styles.videoThumbnail}>
-                    <Text style={styles.videoPlaceholder}>{t.videoThumbnail}</Text>
-                  </View>
+                <TouchableOpacity
+                  style={styles.videoContainer}
+                  onPress={() => handleThumbnailPress(response)}
+                  activeOpacity={0.8}>
+                  {thumbnailLoading[response.id] ? (
+                    <View style={styles.videoThumbnail}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    </View>
+                  ) : thumbnails[response.id] ? (
+                    <Image
+                      source={{ uri: thumbnails[response.id] || '' }}
+                      style={styles.videoThumbnail}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.videoThumbnail}>
+                      <Text style={styles.videoPlaceholder}>{t.videoThumbnail}</Text>
+                    </View>
+                  )}
                   <View style={styles.playIconContainer}>
                     <Text style={styles.playIcon}>▶</Text>
                   </View>
                   {/* Threat Level Badge */}
                   <View style={[styles.threatLevelBadge, { backgroundColor: getThreatLevelColor(response.threatLevel) }]}>
                     <Text style={styles.threatLevelText}>
-                      {response.threatLevel || 'High'}
+                      {formatThreatLevel(response.threatLevel)}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Action Report Section */}
                 <View style={styles.actionReportContainer}>

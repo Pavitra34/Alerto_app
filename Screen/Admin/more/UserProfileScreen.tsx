@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { dummyUsers, findUserById, User } from '../../../api/users';
+import { findUserById, User } from '../../../api/users';
 import { getTranslations } from '../../../assets/Translation';
 import { Button1 } from '../../../components/common/Button';
 import CartBox from '../../../components/common/CartBox';
@@ -85,10 +85,17 @@ export default function UserProfileScreen() {
   }, []);
 
   useEffect(() => {
-    if (userId) {
-      const userData = findUserById(userId);
-      setUser(userData);
-    }
+    const loadUser = async () => {
+      if (userId) {
+        try {
+          const userData = await findUserById(userId);
+          setUser(userData);
+        } catch (error) {
+          console.error('Error loading user:', error);
+        }
+      }
+    };
+    loadUser();
   }, [userId]);
 
   const getInitials = (name: string): string => {
@@ -122,15 +129,14 @@ export default function UserProfileScreen() {
     setShowDeletePopup(false);
   };
 
-  const handleConfirmDelete = () => {
-    // Dummy delete action - in real app, this would be an API call
+  const handleConfirmDelete = async () => {
+    // TODO: Implement delete user API call
+    // For now, just show a message that this feature is not yet implemented
     if (user) {
-      // Remove user from dummyUsers array
-      const userIndex = dummyUsers.findIndex((u) => u.id === user.id);
-      if (userIndex !== -1) {
-        dummyUsers.splice(userIndex, 1);
-      }
-      console.log('User deleted:', userId);
+      console.log('User delete requested:', userId);
+      // In a real app, this would be an API call:
+      // await deleteUser(userId);
+      showSuccessToast('Delete user functionality will be implemented soon');
     }
     
     // Close popup and navigate back
@@ -208,33 +214,31 @@ export default function UserProfileScreen() {
   };
 
   // Save handlers
-  const handleSaveFullname = () => {
+  const handleSaveFullname = async () => {
     if (editingFullname.trim() && user) {
-      // Update user in dummyUsers array
-      const userIndex = dummyUsers.findIndex((u) => u.id === user.id);
-      if (userIndex !== -1) {
-        dummyUsers[userIndex].fullname = editingFullname.trim();
-        setUser({ ...user, fullname: editingFullname.trim() });
-        showSuccessToast(t.fullnameUpdatedSuccessfully || 'Fullname updated successfully');
-      }
+      // TODO: Implement update user API call
+      // For now, just update local state
+      // In a real app, this would be an API call:
+      // await updateUser(user.id, { fullname: editingFullname.trim() });
+      setUser({ ...user, fullname: editingFullname.trim() });
+      showSuccessToast(t.fullnameUpdatedSuccessfully || 'Fullname updated successfully');
       setShowEditFullnameModal(false);
     }
   };
 
-  const handleSaveUsername = () => {
+  const handleSaveUsername = async () => {
     if (editingUsername.trim() && user) {
-      // Update user in dummyUsers array
-      const userIndex = dummyUsers.findIndex((u) => u.id === user.id);
-      if (userIndex !== -1) {
-        dummyUsers[userIndex].username = editingUsername.trim();
-        setUser({ ...user, username: editingUsername.trim() });
-        showSuccessToast('Username updated successfully');
-      }
+      // TODO: Implement update user API call
+      // For now, just update local state
+      // In a real app, this would be an API call:
+      // await updateUser(user.id, { username: editingUsername.trim() });
+      setUser({ ...user, username: editingUsername.trim() });
+      showSuccessToast('Username updated successfully');
       setShowEditUsernameModal(false);
     }
   };
 
-  const handleSaveEmail = () => {
+  const handleSaveEmail = async () => {
     if (editingEmail.trim() && user) {
       // Basic email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -242,18 +246,17 @@ export default function UserProfileScreen() {
         Alert.alert('Invalid Email', 'Please enter a valid email address');
         return;
       }
-      // Update user in dummyUsers array
-      const userIndex = dummyUsers.findIndex((u) => u.id === user.id);
-      if (userIndex !== -1) {
-        dummyUsers[userIndex].email = editingEmail.trim();
-        setUser({ ...user, email: editingEmail.trim() });
-        showSuccessToast(t.emailUpdatedSuccessfully || 'Email updated successfully');
-      }
+      // TODO: Implement update user API call
+      // For now, just update local state
+      // In a real app, this would be an API call:
+      // await updateUser(user.id, { email: editingEmail.trim() });
+      setUser({ ...user, email: editingEmail.trim() });
+      showSuccessToast(t.emailUpdatedSuccessfully || 'Email updated successfully');
       setShowEditEmailModal(false);
     }
   };
 
-  const handleSavePhone = () => {
+  const handleSavePhone = async () => {
     // Reset error
     setPhoneError('');
     
@@ -272,14 +275,12 @@ export default function UserProfileScreen() {
     }
     
     if (user) {
-      // Update user in dummyUsers array
-      const userIndex = dummyUsers.findIndex((u) => u.id === user.id);
-      if (userIndex !== -1) {
-        // Store phone number as integer (without country code, as per existing structure)
-        dummyUsers[userIndex].phonenumber = parseInt(editingPhone.trim(), 10);
-        setUser({ ...user, phonenumber: parseInt(editingPhone.trim(), 10) });
-        showSuccessToast('Phone number updated successfully');
-      }
+      // TODO: Implement update user API call
+      // For now, just update local state
+      // In a real app, this would be an API call:
+      // await updateUser(user.id, { phonenumber: parseInt(editingPhone.trim(), 10) });
+      setUser({ ...user, phonenumber: parseInt(editingPhone.trim(), 10) });
+      showSuccessToast('Phone number updated successfully');
       setShowEditPhoneModal(false);
       setPhoneError('');
     }
@@ -346,7 +347,17 @@ export default function UserProfileScreen() {
         {/* Profile Avatar */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(user.fullname)}</Text>
+            {user.profile_image ? (
+              <Image
+                source={user.profile_image === 'boy' 
+                  ? require('../../../assets/images/boy.png')
+                  : require('../../../assets/images/girl.png')} 
+                style={styles.avatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={styles.avatarText}>{getInitials(user.fullname)}</Text>
+            )}
           </View>
           {activeStatus && (
             <View style={styles.activeBadge}>
@@ -752,6 +763,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
     color: colors.secondary,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50, // Make it circular to match avatar size
   },
   activeBadge: {
     position: 'absolute',

@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -13,11 +15,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, findCameraById } from '../../api/Camera';
-import { EmployeeActive, findEmployeeActiveByUserId, getActiveEmployees } from '../../api/Employee_active';
-import { ReportMessageEntry, Task, dummyTasks, findTasksByThreatId } from '../../api/Tasks';
-import { Threat, dummyThreats, getUnassignedThreats } from '../../api/Threat';
-import { User, findUserById } from '../../api/users';
+import { Camera, getAllCameras } from '../../api/Camera';
+import { EmployeeActive, getAllEmployeeActiveStatuses } from '../../api/employeeActive';
+import { ReportMessageEntry, Task, createTask, deleteTask, findTasksByThreatId, getAllTasks } from '../../api/tasks';
+import { Threat, getAllThreats, updateThreatStatus } from '../../api/Threat';
+import { User, getAllUsers } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
@@ -26,6 +28,7 @@ import colors from '../../styles/Colors';
 import Footer_A from '../Footer_A';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
+
 
 type TabType = 'unreviewed' | 'assigned' | 'reviewed';
 
@@ -51,8 +54,75 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
   onReassignPress,
   t,
 }) => {
+  const router = useRouter();
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+
+  // Helper function to extract YouTube video ID from URL
+  const getYouTubeVideoId = (url: string): string | null => {
+    if (!url) return null;
+    
+    // Handle different YouTube URL formats
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&\n?#]+)/,
+      /youtube\.com\/embed\/([^&\n?#]+)/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  };
+
+  // Helper function to get YouTube thumbnail URL
+  const getYouTubeThumbnail = (url: string): string | null => {
+    const videoId = getYouTubeVideoId(url);
+    if (!videoId) return null;
+    
+    // Use YouTube's thumbnail API
+    return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  };
+
+  // Load thumbnail when camera view changes
+  useEffect(() => {
+    if (camera?.camera_view) {
+      const isYouTube = camera.camera_view.includes('youtube.com') || camera.camera_view.includes('youtu.be');
+      
+      if (isYouTube) {
+        const youtubeThumbnail = getYouTubeThumbnail(camera.camera_view);
+        if (youtubeThumbnail) {
+          setThumbnailUri(youtubeThumbnail);
+        } else {
+          setThumbnailUri(camera.camera_view);
+        }
+      } else {
+        setThumbnailUri(camera.camera_view);
+      }
+    } else {
+      setThumbnailUri(null);
+    }
+  }, [camera?.camera_view]);
+
+  // Handle thumbnail press - navigate to full screen view
+  const handleThumbnailPress = () => {
+    if (!camera) return;
+    
+    router.push({
+      pathname: '/camera-view',
+      params: {
+        cameraId: camera._id,
+        cameraName: camera.name,
+        cameraView: camera.camera_view || '',
+        cameraLocation: camera.location || '',
+        cameraStatus: camera.camera_status ? 'true' : 'false',
+      },
+    } as any);
+  };
 
   const formatDate = (isoDate: string): string => {
     const date = new Date(isoDate);
@@ -66,16 +136,26 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
   };
 
   const getThreatLevelColor = (level: string): string => {
-    switch (level) {
-      case 'High':
-        return '#FF0000';
-      case 'Medium':
-        return '#FF9500';
-      case 'Low':
-        return '#34C759';
-      default:
-        return colors.subtext;
+    const levelLower = level?.toLowerCase() || '';
+    if (levelLower === 'high' || levelLower === 'critical') {
+      return '#FF0000'; // Red
+    } else if (levelLower === 'medium') {
+      return '#F76800'; // Orange
+    } else if (levelLower === 'low') {
+      return '#4CAF50'; // Green
     }
+    return '#FF0000'; // Default to red
+  };
+
+  const formatThreatLevel = (level: string): string => {
+    if (!level) return 'High';
+    const levelLower = level.toLowerCase();
+    // Handle critical as high
+    if (levelLower === 'critical') {
+      return 'High';
+    }
+    // Capitalize first letter, lowercase rest
+    return levelLower.charAt(0).toUpperCase() + levelLower.slice(1);
   };
 
   const getThreatTypeDisplay = (type: string): string => {
@@ -122,15 +202,18 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
       </View>
 
       {/* Video Thumbnail Section */}
-      <View style={styles.thumbnailContainer}>
-        {imageLoading && !imageError && (
+      <TouchableOpacity
+        style={styles.thumbnailContainer}
+        onPress={handleThumbnailPress}
+        activeOpacity={0.8}>
+        {imageLoading && !imageError && thumbnailUri && (
           <View style={styles.thumbnailLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
-        {!imageError ? (
+        {!imageError && thumbnailUri ? (
           <Image
-            source={{ uri: camera?.camera_view }}
+            source={{ uri: thumbnailUri }}
             style={styles.thumbnail}
             resizeMode="cover"
             onLoadStart={() => setImageLoading(true)}
@@ -162,10 +245,10 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
             </View>
           )}
           <View style={[styles.levelBadge, { backgroundColor: getThreatLevelColor(threat.threat_level) }]}>
-            <Text style={styles.levelBadgeText}>{threat.threat_level}</Text>
+            <Text style={styles.levelBadgeText}>{formatThreatLevel(threat.threat_level)}</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Reviewed Section - Show report messages for reviewed tasks */}
       {activeTab === 'reviewed' && task?.review_status && reportMessages && reportMessages.length > 0 && (
@@ -224,11 +307,12 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
                 borderRadius={10}
                 borderWidth={0}
                 backgroundColor={colors.assigned_staff}
-                paddingTop={8}
+                paddingTop={6}
                 paddingBottom={8}
                 paddingRight={8}
                 paddingLeft={8}
                 marginBottom={12}
+              
                 alignItems="flex-start">
                     <Text style={styles.assignedStaffCardName} ellipsizeMode="tail" numberOfLines={1}>
                       {t.assignedStaff} {employeeName}
@@ -365,6 +449,7 @@ const AssignModal: React.FC<AssignModalProps & { t: any }> = ({
             backgroundColor={colors.primary}
             width="100%"
             height={39}
+            textStyle={styles.modalAssignButtonText}
             containerStyle={styles.modalAssignButton}
           />
         </TouchableOpacity>
@@ -379,6 +464,12 @@ export default function AlertScreen() {
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [t, setT] = useState(getTranslations('en'));
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [employeeActiveStatuses, setEmployeeActiveStatuses] = useState<EmployeeActive[]>([]);
 
   const loadLanguage = async () => {
     try {
@@ -389,8 +480,37 @@ export default function AlertScreen() {
     }
   };
 
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [allThreats, allCameras, allUsers, allEmployeeStatuses, allTasks] = await Promise.all([
+        getAllThreats(),
+        getAllCameras(),
+        getAllUsers(),
+        getAllEmployeeActiveStatuses(),
+        getAllTasks()
+      ]);
+      setThreats(allThreats);
+      setCameras(allCameras);
+      setUsers(allUsers);
+      setTasks(allTasks);
+      // Use employeeActiveStatuses directly from API (already in correct EmployeeActive format)
+      setEmployeeActiveStatuses(allEmployeeStatuses);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setThreats([]);
+      setCameras([]);
+      setUsers([]);
+      setTasks([]);
+      setEmployeeActiveStatuses([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
+    loadData();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -399,78 +519,107 @@ export default function AlertScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Get active employees with user details
+  // Reload data when refreshKey changes or when returning to screen
+  useEffect(() => {
+    loadData();
+  }, [refreshKey]);
+
+  // Get active employees with user details from database
+  // Only show employees with active_status = true
   const activeEmployeesWithUsers = useMemo(() => {
-    const activeEmps = getActiveEmployees();
+    // Filter to get only active employees (active_status = true)
+    const activeEmps = employeeActiveStatuses.filter((emp) => emp.active_status === true);
+    
+    // Map to include user details
     return activeEmps.map((emp) => ({
       ...emp,
-      user: findUserById(emp.user_id),
-    }));
-  }, []);
+      user: users.find((u) => u.id === emp.user_id),
+    })).filter((emp) => emp.user !== undefined); // Only include employees that have user data
+  }, [employeeActiveStatuses, users]);
 
   // Filter threats based on active tab
   const filteredThreats = useMemo(() => {
+    if (loading || !threats || threats.length === 0) {
+      return [];
+    }
+
     switch (activeTab) {
       case 'unreviewed':
-        return getUnassignedThreats();
+        // Show threats where threat_status is false (unassigned)
+        return threats.filter((threat) => threat.threat_status === false);
       case 'assigned':
-        return dummyThreats.filter((threat) => threat.threat_status === true);
+        // Show threats where threat_status is true (assigned) BUT NOT yet reviewed
+        // A threat is assigned if threat_status is true AND no task has review_status = true
+        return threats.filter((threat) => {
+          if (threat.threat_status !== true) {
+            return false; // Not assigned
+          }
+          // Check if any task for this threat has been reviewed
+          const reviewedTask = tasks.find((task) => task.threat_id === threat._id && task.review_status === true);
+          return !reviewedTask; // Show only if NOT reviewed
+        });
       case 'reviewed':
-        return dummyThreats.filter((threat) => {
-          const task = dummyTasks.find((task) => task.threat_id === threat._id);
+        // Show threats that have been reviewed (have tasks with review_status = true)
+        return threats.filter((threat) => {
+          const task = tasks.find((task) => task.threat_id === threat._id);
           return task && task.review_status === true;
         });
       default:
         return [];
     }
-  }, [activeTab, refreshKey]);
+  }, [activeTab, threats, tasks, loading, refreshKey]);
 
   const handleAssignPress = (threat: Threat) => {
     setSelectedThreat(threat);
     setAssignModalVisible(true);
   };
 
-  const handleAssign = (threatId: string, userIds: string[]) => {
-    // In a real app, this would be an API call
-    // For reassignment: Remove old tasks and create new ones
-    const existingTasks = dummyTasks.filter((task) => task.threat_id === threatId);
-    existingTasks.forEach((task) => {
-      const index = dummyTasks.findIndex((taskItem) => taskItem._id === task._id);
-      if (index !== -1) {
-        dummyTasks.splice(index, 1);
+  const handleAssign = async (threatId: string, userIds: string[]) => {
+    try {
+      // For reassignment: Delete old tasks from database
+      const existingTasks = await findTasksByThreatId(threatId);
+      for (const task of existingTasks) {
+        try {
+          await deleteTask(task._id);
+        } catch (error) {
+          console.error('Error deleting existing task:', error);
+        }
       }
-    });
 
-    // Create a single task with all selected user_ids
-    const newTask: Task = {
-      _id: `task${Date.now()}_${threatId}`,
-      threat_id: threatId,
-      user_ids: userIds,
-      review_status: false,
-      report_message: null, // null when review_status is false
-      createdat: new Date().toISOString(),
-      updatedat: new Date().toISOString(),
-    };
+      // Create a new task in database with all selected user_ids
+      await createTask(
+        threatId,
+        userIds,
+        false, // review_status = false initially
+        null   // report_message = null initially
+      );
 
-    // Add task to dummyTasks (in real app, this would be an API call)
-    dummyTasks.push(newTask);
+      // Update threat status to true (assigned) in database
+      // Use first user_id as assigned_to (or you can use the first one from userIds array)
+      const assignedToUserId = userIds.length > 0 ? userIds[0] : null;
+      await updateThreatStatus(threatId, true, assignedToUserId);
 
-    // Update threat status (in real app, this would be an API call)
-    const threat = dummyThreats.find((threatItem) => threatItem._id === threatId);
-    if (threat) {
-      threat.threat_status = true;
-      threat.updatedat = new Date().toISOString();
+      // Reload data from API to get updated threat status and tasks
+      await loadData();
+
+      // If currently on unreviewed tab and threat was assigned, switch to assigned tab
+      if (activeTab === 'unreviewed') {
+        setActiveTab('assigned');
+      }
+
+      // Refresh the view by updating state
+      setRefreshKey((prev) => prev + 1);
+      setAssignModalVisible(false);
+      setSelectedThreat(null);
+    } catch (error) {
+      console.error('Error assigning threat:', error);
+      // Show error message to user (you can add a toast/alert here)
     }
-
-    // Refresh the view by updating state
-    setRefreshKey((prev) => prev + 1);
-    setAssignModalVisible(false);
-    setSelectedThreat(null);
   };
 
   const handleReassignPress = (threat: Threat) => {
-    // Get currently assigned employees for this threat
-    const assignedTasks = findTasksByThreatId(threat._id);
+    // Get currently assigned employees for this threat from tasks state
+    const assignedTasks = tasks.filter((task) => task.threat_id === threat._id);
     // Flatten all user_ids from all tasks into a single array
     const assignedUserIds = assignedTasks.flatMap((task) => task.user_ids);
     
@@ -552,22 +701,35 @@ export default function AlertScreen() {
       {/* Alert Cards List */}
       <ScrollView
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}>
-        {filteredThreats.length === 0 ? (
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={loadData}
+            tintColor={colors.primary}
+          />
+        }>
+        {loading ? (
+          <View style={styles.emptyContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.emptyText}>Loading...</Text>
+          </View>
+        ) : filteredThreats.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>{t.noAlertsFound}</Text>
           </View>
         ) : (
           filteredThreats.map((threat) => {
-            const camera = findCameraById(threat.camera_id);
-            // Get assigned employees for this threat
-            const assignedTasks = findTasksByThreatId(threat._id);
+            const camera = cameras.find((cam) => cam._id === threat.camera_id);
+            // Get assigned employees for this threat from tasks state
+            const assignedTasks = tasks.filter((task) => task.threat_id === threat._id);
             // Flatten all user_ids from all tasks and get unique users
             const allUserIds = assignedTasks.flatMap((task) => task.user_ids);
             const uniqueUserIds = Array.from(new Set(allUserIds));
             const assignedEmployees = uniqueUserIds.map((userId) => {
-              const user = findUserById(userId);
-              const employeeActive = findEmployeeActiveByUserId(userId);
+              const user = users.find((u) => u.id === userId);
+              // Find employee active status from loaded state
+              const employeeActive = employeeActiveStatuses.find((emp) => emp.user_id === userId);
               return { user, employeeActive };
             });
             
@@ -602,7 +764,7 @@ export default function AlertScreen() {
         activeEmployees={activeEmployeesWithUsers}
         preSelectedUserIds={
           selectedThreat
-            ? findTasksByThreatId(selectedThreat._id).flatMap((task) => task.user_ids)
+            ? tasks.filter((task) => task.threat_id === selectedThreat._id).flatMap((task) => task.user_ids)
             : []
         }
         onClose={() => {
@@ -639,14 +801,14 @@ const styles = StyleSheet.create({
     height:39
   },
   tabButtonText: {
-    fontSize: fonts.size.l,
+    fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
     color: colors.subtext,
     paddingVertical: 10,
   },
   tabButtonTextActive: {
-    fontSize: fonts.size.l,
+    fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.medium,
     color: colors.secondary,
@@ -883,7 +1045,7 @@ const styles = StyleSheet.create({
     height:41,
   },
   employeeRowSelected: {
-    borderWidth:2,
+    borderWidth:1,
     borderColor:colors.popupBorderColor,
   },
   employeeName: {
@@ -914,5 +1076,8 @@ const styles = StyleSheet.create({
   },
   modalAssignButton: {
     marginTop: 10,
+  },
+  modalAssignButtonText: {
+    paddingVertical: 8,
   },
 });

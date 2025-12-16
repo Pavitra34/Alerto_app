@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
   Platform,
@@ -10,13 +11,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAllCameras, getActiveCameras } from '../../api/Camera';
+import { getAllCameras } from '../../api/Camera';
 import { getAllEmployeeActiveStatuses } from '../../api/employeeActive';
 import { getAllThreats } from '../../api/Threat';
 import { getUsersByRole, User } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
+import Toast, { showSuccessToast, toastConfig } from '../../components/common/Toast';
 import colors from '../../styles/Colors';
 import Footer_A from '../Footer_A';
 // @ts-ignore
@@ -52,6 +54,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value }) => {
 };
 
 export default function AdminScreen() {
+  const params = useLocalSearchParams();
   const [t, setT] = useState(getTranslations('en'));
   const [employees, setEmployees] = useState<User[]>([]);
   const [cameras, setCameras] = useState<any[]>([]);
@@ -64,6 +67,7 @@ export default function AdminScreen() {
     storageHealth: '87%',
     activeStaff: '0/0',
   });
+  const hasShownLoginToast = useRef<boolean>(false);
 
   const loadLanguage = async () => {
     try {
@@ -127,6 +131,17 @@ export default function AdminScreen() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle login success toast separately
+  useEffect(() => {
+    if (params.showLoginSuccess === 'true' && !hasShownLoginToast.current && t) {
+      // Use setTimeout to ensure it shows after screen is fully loaded
+      setTimeout(() => {
+        showSuccessToast(t.loginSuccessful);
+        hasShownLoginToast.current = true;
+      }, 500);
+    }
+  }, [params.showLoginSuccess, t]); // Depend on showLoginSuccess and translations
 
   // Calculate metrics
   useEffect(() => {
@@ -227,6 +242,7 @@ export default function AdminScreen() {
         />
       </ScrollView>
       <Footer_A />
+      <Toast config={toastConfig} />
     </View>
   );
 }

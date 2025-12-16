@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Image,
+  Linking,
   Platform,
   RefreshControl,
   ScrollView,
@@ -31,6 +32,7 @@ export default function HelpCenterScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [contactData, setContactData] = useState<ContactCardProps[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [contactEmail, setContactEmail] = useState<string>('');
 
   const handleBack = () => {
     router.back();
@@ -74,7 +76,35 @@ export default function HelpCenterScreen() {
     const isValid = validateFields();
     if (isValid) {
       console.log('Submit pressed', { name, email, message });
-      // Add submit logic here
+      
+      // Get contact email from contactData
+      const emailContact = contactData.find(item => item.label === 'Email');
+      const toEmail = emailContact?.value || contactEmail || '';
+      
+      if (!toEmail) {
+        console.error('Contact email not found');
+        return;
+      }
+      
+      // Create mailto URL with user's email in the body
+      const subject = encodeURIComponent(`Help Center Inquiry from ${name}`);
+      const body = encodeURIComponent(
+        `From: ${email}\n\n${message}`
+      );
+      const mailtoUrl = `mailto:${toEmail}?subject=${subject}&body=${body}`;
+      
+      // Open email client
+      Linking.openURL(mailtoUrl).catch((err) => {
+        console.error('Error opening email client:', err);
+      });
+      
+      // Clear all fields after opening email client
+      setName('');
+      setEmail('');
+      setMessage('');
+      setNameError('');
+      setEmailError('');
+      setMessageError('');
     }
   };
 
@@ -106,6 +136,9 @@ export default function HelpCenterScreen() {
     try {
       setLoading(true);
       const contact = await getContactDetails();
+      
+      // Store contact email for email functionality
+      setContactEmail(contact.email);
       
       // Create contact data array from API response
       const contactList: ContactCardProps[] = [
@@ -277,7 +310,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 100,
+    paddingBottom: 50,
   },
   logoSection: {
     alignItems: 'center',
