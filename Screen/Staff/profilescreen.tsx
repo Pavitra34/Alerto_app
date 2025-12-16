@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  BackHandler,
   Image,
   Modal,
   Platform,
@@ -15,11 +16,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getUserById, updateProfileImage } from '../../api/users';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import Popup from '../../components/common/Popup';
-import Toast, { showSuccessToast, toastConfig } from '../../components/common/Toast';
+import Toast, { showErrorToast, showSuccessToast, toastConfig } from '../../components/common/Toast';
 import colors from '../../styles/Colors';
 import Footer from '../Footer';
 // @ts-ignore
@@ -86,11 +88,17 @@ export default function ProfileScreen() {
       setLangId(storedLangId);
       setT(getTranslations(storedLangId));
 
-      // Load selected avatar
-      const storedAvatar = await AsyncStorage.getItem('selectedAvatar');
-      if (storedAvatar) {
-        setCurrentAvatar(storedAvatar);
-        console.log('Loaded avatar from storage:', storedAvatar);
+      // Load profile image from database
+      if (storedUserId) {
+        try {
+          const userData = await getUserById(storedUserId);
+          if (userData && userData.profile_image) {
+            setCurrentAvatar(userData.profile_image);
+            console.log('Loaded avatar from database:', userData.profile_image);
+          }
+        } catch (error) {
+          console.error('Error loading profile image:', error);
+        }
       }
     } catch (error) {
       console.error('Error loading profile data:', error);
@@ -105,6 +113,16 @@ export default function ProfileScreen() {
   useEffect(() => {
     setT(getTranslations(langId));
   }, [langId]);
+
+  // Disable Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        return true; // Prevent going back
+      });
+      return () => backHandler.remove();
+    }
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -240,27 +258,41 @@ export default function ProfileScreen() {
 
   const handleSaveAvatar = async () => {
     try {
-      if (selectedAvatar) {
-        // Save selected avatar to AsyncStorage
-        await AsyncStorage.setItem('selectedAvatar', selectedAvatar);
-        setCurrentAvatar(selectedAvatar);
-        console.log('Avatar saved:', selectedAvatar);
-        setShowAvatarPopup(false);
-        setSelectedAvatar(null);
-        // Show success toast
+      if (!userId) {
+        console.error('User ID not available');
+        return;
+      }
+
+      // Save profile image to database
+      const profileImageValue = selectedAvatar || null;
+      await updateProfileImage(userId, profileImageValue);
+      
+      setCurrentAvatar(profileImageValue);
+      console.log('Avatar saved to database:', profileImageValue);
+      setShowAvatarPopup(false);
+      setSelectedAvatar(null);
+      
+      // Update userObj in AsyncStorage with new profile_image
+      try {
+        const userObjString = await AsyncStorage.getItem('userObj');
+        if (userObjString) {
+          const userObj = JSON.parse(userObjString);
+          userObj.profile_image = profileImageValue;
+          await AsyncStorage.setItem('userObj', JSON.stringify(userObj));
+        }
+      } catch (storageError) {
+        console.error('Error updating userObj in storage:', storageError);
+      }
+      
+      // Show success toast
+      if (profileImageValue) {
         showSuccessToast(t.avatarAddedSuccessfully);
       } else {
-        // If no avatar selected (unselected), remove from storage
-        await AsyncStorage.removeItem('selectedAvatar');
-        setCurrentAvatar(null);
-        console.log('Avatar removed');
-        setShowAvatarPopup(false);
-        setSelectedAvatar(null);
-        // Show success toast
         showSuccessToast(t.avatarRemovedSuccessfully);
       }
     } catch (error) {
       console.error('Error saving avatar:', error);
+      showErrorToast('Failed to save avatar. Please try again.');
     }
   };
 

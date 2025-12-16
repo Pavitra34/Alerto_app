@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Modal,
   Platform,
@@ -18,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { findCameraById } from '../../api/Camera';
 import { getEmployeeActiveStatus, setEmployeeActiveStatus } from '../../api/employeeActive';
-import { findTasksByUserId } from '../../api/Tasks';
+import { findTasksByUserId, ReportMessageEntry, Task, updateTask } from '../../api/tasks';
 import { findThreatById } from '../../api/Threat';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
@@ -66,6 +67,7 @@ interface AlertResponse {
 
 export default function EmployeeScreen() {
   const params = useLocalSearchParams();
+  const router = useRouter();
   const [userName, setUserName] = useState<string>('Employee');
   const [userId, setUserId] = useState<string>('');
   const [isActive, setIsActive] = useState<boolean>(false);
@@ -85,6 +87,8 @@ export default function EmployeeScreen() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [langId, setLangId] = useState<string>('en');
   const [t, setT] = useState(getTranslations('en'));
+  const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
+  const [thumbnailLoading, setThumbnailLoading] = useState<Record<string, boolean>>({});
 
   // Load user data and active status on mount and when screen is focused
   useEffect(() => {
@@ -195,43 +199,67 @@ export default function EmployeeScreen() {
   const loadUserTasks = async (userIdParam?: string) => {
     try {
       const currentUserId = userIdParam || userId;
-      if (!currentUserId) return;
+      if (!currentUserId) {
+        console.log('No user ID available for loading tasks');
+        return;
+      }
       
-      // Get tasks assigned to this user
-      const tasks = findTasksByUserId(currentUserId);
+      console.log('Loading tasks for user:', currentUserId);
+      
+      // Get tasks assigned to this user from database
+      const tasks = await findTasksByUserId(currentUserId);
       console.log('Found tasks for user:', currentUserId, tasks);
       
-      // For each task, get threat and camera details
-      const tasksWithDetails: TaskWithThreat[] = tasks.map(task => {
-        const threat = findThreatById(task.threat_id);
-        console.log('Looking for threat:', task.threat_id, 'Found:', threat);
-        if (!threat) {
-          console.warn('Threat not found for task:', task._id, 'threat_id:', task.threat_id);
+      if (tasks.length === 0) {
+        console.log('No tasks found for user:', currentUserId);
+        setAllAssignedTasks([]);
+        setUserTasks([]);
+        setAllTasksResponded(false);
+        return;
+      }
+      
+      // For each task, get threat and camera details (async)
+      const tasksWithDetailsPromises = tasks.map(async (task: Task) => {
+        try {
+          const threat = await findThreatById(task.threat_id);
+          console.log('Looking for threat:', task.threat_id, 'Found:', threat);
+          if (!threat) {
+            console.warn('Threat not found for task:', task._id, 'threat_id:', task.threat_id);
+            return null;
+          }
+          
+          const camera = await findCameraById(threat.camera_id);
+          if (!camera) {
+            console.warn('Camera not found for threat:', threat._id, 'camera_id:', threat.camera_id);
+            return null;
+          }
+          
+          const threatLevel = threat.threat_level || 'N/A';
+          console.log('Threat level for', threat._id, ':', threatLevel);
+          
+          return {
+            taskId: task._id,
+            threatId: threat._id,
+            threatType: threat.threat_type,
+            threatLevel: threatLevel,
+            cameraId: camera._id,
+            cameraName: camera.name,
+            cameraLocation: camera.location,
+            cameraView: camera.camera_view,
+            createdAt: threat.createdat,
+            reviewStatus: task.review_status,
+          };
+        } catch (error) {
+          console.error('Error loading task details for task:', task._id, error);
           return null;
         }
-        
-        const camera = findCameraById(threat.camera_id);
-        if (!camera) {
-          console.warn('Camera not found for threat:', threat._id, 'camera_id:', threat.camera_id);
-          return null;
-        }
-        
-        const threatLevel = threat.threat_level || 'N/A';
-        console.log('Threat level for', threat._id, ':', threatLevel);
-        
-        return {
-          taskId: task._id,
-          threatId: threat._id,
-          threatType: threat.threat_type,
-          threatLevel: threatLevel,
-          cameraId: camera._id,
-          cameraName: camera.name, // Get directly from Camera.ts
-          cameraLocation: camera.location, // Get directly from Camera.ts
-          cameraView: camera.camera_view, // Get video URL from Camera.ts
-          createdAt: threat.createdat,
-          reviewStatus: task.review_status,
-        };
-      }).filter((task): task is TaskWithThreat => task !== null);
+      });
+      
+      // Wait for all async operations to complete
+      const tasksWithDetailsResults = await Promise.all(tasksWithDetailsPromises);
+      const tasksWithDetails = tasksWithDetailsResults.filter((task): task is TaskWithThreat => task !== null);
+      
+      console.log('Loaded tasks with details:', tasksWithDetails.length);
       
       // Store all assigned tasks (before filtering out responded ones)
       setAllAssignedTasks(tasksWithDetails);
@@ -242,9 +270,11 @@ export default function EmployeeScreen() {
       // Filter out tasks that have already been responded to
       const unrespondedTasks = await filterRespondedTasks(currentUserId, tasksWithDetails);
       setUserTasks(unrespondedTasks);
-      console.log('Loaded user tasks with details:', JSON.stringify(unrespondedTasks, null, 2));
+      console.log('Loaded user tasks (unresponded):', unrespondedTasks.length);
     } catch (error) {
       console.error('Error loading user tasks:', error);
+      setAllAssignedTasks([]);
+      setUserTasks([]);
     }
   };
 
@@ -354,8 +384,10 @@ export default function EmployeeScreen() {
         console.error('Error saving active status to AsyncStorage:', error);
       }
       
-      // Load tasks when user goes active
-      loadUserTasks();
+      // Load tasks when user goes active - wait for it to complete
+      console.log('Loading tasks after going active...');
+      await loadUserTasks(userId);
+      console.log('Tasks loaded after going active');
     } catch (error) {
       console.error('Error setting active status:', error);
       // Show error toast if needed
@@ -407,14 +439,25 @@ export default function EmployeeScreen() {
 
   const getThreatLevelColor = (threatLevel: string): string => {
     const level = threatLevel?.toLowerCase() || '';
-    if (level === 'high') {
-      return '#FF3B30'; // Red
+    if (level === 'high' || level === 'critical') {
+      return '#FF0000'; // Red
     } else if (level === 'medium') {
-      return '#FF9800'; // Orange
+      return '#F76800'; // Orange
     } else if (level === 'low') {
       return '#4CAF50'; // Green
     }
-    return '#FF3B30'; // Default to red
+    return '#FF0000'; // Default to red
+  };
+
+  const formatThreatLevel = (level: string): string => {
+    if (!level) return 'High';
+    const levelLower = level.toLowerCase();
+    // Handle critical as high
+    if (levelLower === 'critical') {
+      return 'High';
+    }
+    // Capitalize first letter, lowercase rest
+    return levelLower.charAt(0).toUpperCase() + levelLower.slice(1);
   };
 
   return (
@@ -554,20 +597,46 @@ export default function EmployeeScreen() {
                   </View>
 
                   {/* Video Thumbnail */}
-                  <View style={styles.videoContainer}>
-                    <View style={styles.videoThumbnail}>
-                      <Text style={styles.videoPlaceholder}>viedo thumnail</Text>
-                    </View>
+                  <TouchableOpacity
+                    style={styles.videoContainer}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/camera-view',
+                        params: {
+                          cameraId: task.cameraId,
+                          cameraName: task.cameraName,
+                          cameraView: task.cameraView || '',
+                          cameraLocation: task.cameraLocation || '',
+                          cameraStatus: 'true',
+                        },
+                      } as any);
+                    }}
+                    activeOpacity={0.8}>
+                    {thumbnailLoading[task.taskId] ? (
+                      <View style={styles.videoThumbnail}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      </View>
+                    ) : thumbnails[task.taskId] ? (
+                      <Image
+                        source={{ uri: thumbnails[task.taskId] || '' }}
+                        style={styles.videoThumbnail}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.videoThumbnail}>
+                        <Text style={styles.videoPlaceholder}>viedo thumnail</Text>
+                      </View>
+                    )}
                     <View style={styles.playIconContainer}>
                       <Text style={styles.playIcon}>▶</Text>
                     </View>
                     {/* Threat Level Badge */}
                     <View style={[styles.threatLevelBadge, { backgroundColor: getThreatLevelColor(task.threatLevel) }]}>
                       <Text style={styles.threatLevelText} numberOfLines={1}>
-                        {task.threatLevel ? String(task.threatLevel) : 'N/A'}
+                        {formatThreatLevel(task.threatLevel)}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
 
                   {/* Question */}
                   <Text style={styles.threatQuestion}>
@@ -855,7 +924,32 @@ export default function EmployeeScreen() {
 
               console.log('Alert Response:', response);
 
-              // Save to AsyncStorage
+              // Save to Database - Update task with report_message
+              try {
+                if (!selectedTaskId || !userId) {
+                  throw new Error('Task ID or User ID is missing');
+                }
+
+                // Create report message entry for database
+                const reportMessageEntry: ReportMessageEntry = {
+                  user_id: userId,
+                  message: response.fullResponse,
+                  reviewed_time: now.toISOString(), // ISO date string
+                };
+
+                // Update task in database with review_status = true and report_message
+                await updateTask(
+                  selectedTaskId,
+                  true, // review_status = true
+                  [reportMessageEntry] // report_message array
+                );
+                console.log('Task updated in database with report message');
+              } catch (error) {
+                console.error('Error updating task in database:', error);
+                // Continue even if database update fails - still save to AsyncStorage
+              }
+
+              // Save to AsyncStorage (for local history)
               try {
                 const existingHistory = await AsyncStorage.getItem('alertHistory');
                 const historyArray: AlertResponse[] = existingHistory ? JSON.parse(existingHistory) : [];

@@ -6,6 +6,7 @@ export interface User {
   email: string;
   phonenumber: number;
   role: string;
+  profile_image?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -68,6 +69,7 @@ export const getAllUsers = async (): Promise<User[]> => {
         email: user.email,
         phonenumber: user.phonenumber,
         role: user.role,
+        profile_image: user.profile_image || null,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }));
@@ -112,6 +114,7 @@ export const getUserById = async (id: string): Promise<User | null> => {
         email: user.email,
         phonenumber: user.phonenumber,
         role: user.role,
+        profile_image: user.profile_image || null,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       };
@@ -152,6 +155,7 @@ export const getUsersByRole = async (role: 'admin' | 'employee'): Promise<User[]
         email: user.email,
         phonenumber: user.phonenumber,
         role: user.role,
+        profile_image: user.profile_image || null,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }));
@@ -176,3 +180,44 @@ export const findUserById = async (id: string): Promise<User | undefined> => {
   }
 };
 
+// Update user profile image
+export const updateProfileImage = async (userId: string, profileImage: string | null): Promise<User> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl(`users/${userId}/profile-image`);
+
+    const response = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ profile_image: profileImage }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GetUserByIdResponse = await response.json();
+
+    if (data.success && data.data) {
+      const user: any = data.data.user;
+      return {
+        id: user._id || user.id,
+        fullname: user.fullname,
+        username: user.username,
+        email: user.email,
+        phonenumber: user.phonenumber,
+        role: user.role,
+        profile_image: user.profile_image || null,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    } else {
+      throw new Error(data.message || 'Failed to update profile image');
+    }
+  } catch (error: any) {
+    console.error('Update profile image API error:', error);
+    throw error;
+  }
+};

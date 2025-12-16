@@ -2,17 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAllEmployeeActiveStatuses } from '../../api/employeeActive';
@@ -295,7 +295,17 @@ export default function UsersScreen() {
               <View style={styles.userItem}>
               <View style={styles.avatarContainer}>
                 <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{getInitials(user.fullname)}</Text>
+                  {user.profile_image ? (
+                    <Image
+                      source={user.profile_image === 'boy' 
+                        ? require('../../assets/images/boy.png')
+                        : require('../../assets/images/girl.png')} 
+                      style={styles.avatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{getInitials(user.fullname)}</Text>
+                  )}
                 </View>
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{user.fullname}</Text>
@@ -465,6 +475,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
     color: colors.secondary,
+  },
+  avatarImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 25,
   },
   userInfo: {
     maxWidth:"90%"

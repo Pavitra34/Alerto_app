@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   Image,
   Modal,
   Platform,
@@ -62,6 +63,16 @@ export default function ProfileScreen() {
     }, 1000); // Check every second for language changes
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Disable Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        return true; // Prevent going back
+      });
+      return () => backHandler.remove();
+    }
   }, []);
 
   const languages = [

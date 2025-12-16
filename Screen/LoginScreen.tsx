@@ -228,17 +228,38 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      // Show backend error message if available, otherwise show generic error
-      let errorMessage = error?.message || t.loginFailed || 'Login failed';
       
-      // For multi-line error messages, show first line in toast and log full message
-      if (errorMessage.includes('\n')) {
-        const firstLine = errorMessage.split('\n')[0];
-        console.error('Full error details:', errorMessage);
-        errorMessage = firstLine;
+      // Hide keyboard when showing error
+      Keyboard.dismiss();
+      
+      // Check if it's a network/connection error
+      if (error?.message && (
+        error.message.includes('Network request failed') || 
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('NetworkError') ||
+        error.message.includes('Cannot connect to backend server')
+      )) {
+        // Show network error message (frontend message, not backend)
+        showErrorToast('Cannot connect to server. Please check your connection.');
+        return;
       }
       
-      showErrorToast(errorMessage);
+      // Check if it's an invalid credentials error (401 or "Invalid credentials" message)
+      // Always show frontend message, never show backend error message
+      if (error?.message && (
+        error.message.includes('Invalid credentials') ||
+        error.message.includes('Invalid credential') ||
+        error.message.toLowerCase().includes('invalid') && error.message.toLowerCase().includes('credential') ||
+        error.message.includes('401') ||
+        error.message.includes('Server error: 401')
+      )) {
+        // Show user-friendly invalid credentials message (frontend message only)
+        showErrorToast(t.invalidCredential || 'Invalid email/username or password. Please try again.');
+        return;
+      }
+      
+      // For any other errors, show generic login failed message (frontend message, not backend)
+      showErrorToast(t.loginFailed || 'Login failed. Please try again.');
     }
   };
 
