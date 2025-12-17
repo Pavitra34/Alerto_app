@@ -27,6 +27,14 @@ export interface GetCameraByIdResponse {
   };
 }
 
+export interface CreateCameraResponse {
+  success: boolean;
+  message: string;
+  data: {
+    camera: Camera;
+  };
+}
+
 // Get all cameras from backend API
 export const getAllCameras = async (): Promise<Camera[]> => {
   try {
@@ -47,7 +55,7 @@ export const getAllCameras = async (): Promise<Camera[]> => {
     const data: GetAllCamerasResponse = await response.json();
 
     if (data.success && data.data) {
-      return data.data.cameras.map((cam: any) => ({
+      return data.data.cameras.map((cam) => ({
         _id: cam._id,
         name: cam.name,
         location: cam.location,
@@ -55,11 +63,11 @@ export const getAllCameras = async (): Promise<Camera[]> => {
         camera_view: cam.camera_view,
         createdat: cam.createdat || new Date().toISOString(),
         updatedat: cam.updatedat || new Date().toISOString(),
-      } as Camera));
+      }));
     } else {
       throw new Error(data.message || 'Failed to get cameras');
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get all cameras API error:', error);
     throw error;
   }
@@ -101,7 +109,7 @@ export const findCameraById = async (id: string): Promise<Camera | null> => {
     } else {
       throw new Error(data.message || 'Failed to get camera');
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get camera by ID API error:', error);
     throw error;
   }
@@ -127,7 +135,7 @@ export const getActiveCameras = async (): Promise<Camera[]> => {
     const data: GetAllCamerasResponse = await response.json();
 
     if (data.success && data.data) {
-      return data.data.cameras.map((cam: any) => ({
+      return data.data.cameras.map((cam) => ({
         _id: cam._id,
         name: cam.name,
         location: cam.location,
@@ -139,7 +147,7 @@ export const getActiveCameras = async (): Promise<Camera[]> => {
     } else {
       throw new Error(data.message || 'Failed to get active cameras');
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get active cameras API error:', error);
     throw error;
   }
@@ -165,7 +173,7 @@ export const getInactiveCameras = async (): Promise<Camera[]> => {
     const data: GetAllCamerasResponse = await response.json();
 
     if (data.success && data.data) {
-      return data.data.cameras.map((cam: any) => ({
+      return data.data.cameras.map((cam) => ({
         _id: cam._id,
         name: cam.name,
         location: cam.location,
@@ -177,8 +185,64 @@ export const getInactiveCameras = async (): Promise<Camera[]> => {
     } else {
       throw new Error(data.message || 'Failed to get inactive cameras');
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get inactive cameras API error:', error);
+    throw error;
+  }
+};
+
+// Create a new camera
+export const createCamera = async (
+  name: string,
+  location: string,
+  camera_status: boolean = true,
+  camera_view: string
+): Promise<Camera> => {
+  try {
+    const { getApiUrl } = require('../constants/api');
+    const apiUrl = getApiUrl('cameras');
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        location,
+        camera_status,
+        camera_view,
+      }),
+    });
+
+    if (!response.ok) {
+      // For 404 errors, throw a specific error that can be handled gracefully
+      if (response.status === 404) {
+        const notFoundError = new Error(`Camera creation endpoint not found (404)`) as Error & { status?: number; isNotFound?: boolean };
+        notFoundError.status = 404;
+        notFoundError.isNotFound = true;
+        throw notFoundError;
+      }
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: CreateCameraResponse = await response.json();
+
+    if (data.success && data.data) {
+      return data.data.camera;
+    } else {
+      throw new Error(data.message || 'Failed to create camera');
+    }
+  } catch (error: unknown) {
+    // Only log non-404 errors to avoid console spam
+    const isNotFound = error && typeof error === 'object' && (
+      ('isNotFound' in error && error.isNotFound) ||
+      ('status' in error && error.status === 404)
+    );
+    
+    if (!isNotFound) {
+      console.error('Create camera API error:', error);
+    }
     throw error;
   }
 };

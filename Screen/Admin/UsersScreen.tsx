@@ -2,17 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAllEmployeeActiveStatuses } from '../../api/employeeActive';
@@ -149,8 +149,13 @@ export default function UsersScreen() {
   };
 
   const handleStatusSelect = (status: 'active' | 'inactive') => {
-    // Update temporary status (not the actual filter)
-    setTempSelectedStatus(status);
+    // Toggle: If the same status is already selected, unselect it (set to null)
+    // Otherwise, select the new status
+    if (tempSelectedStatus === status) {
+      setTempSelectedStatus(null); // Unselect if already selected
+    } else {
+      setTempSelectedStatus(status); // Select the new status
+    }
   };
 
   const handleApplyFilter = () => {
@@ -277,12 +282,12 @@ export default function UsersScreen() {
               // Ensure activeStatus is properly passed as string ('true' or 'false')
               const activeStatusValue = user.activeStatus === true ? 'true' : 'false';
               router.push({
-                pathname: '/user-profile' as any,
+                pathname: '/user-profile',
                 params: {
                   userId: user.id,
                   activeStatus: activeStatusValue,
                 },
-              } as any);
+              } );
             }}>
             <CartBox
               width="100%"

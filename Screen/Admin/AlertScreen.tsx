@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ResizeMode, Video } from 'expo-av';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, getAllCameras } from '../../api/Camera';
 import { EmployeeActive, getAllEmployeeActiveStatuses } from '../../api/employeeActive';
-import { ReportMessageEntry, Task, createTask, deleteTask, findTasksByThreatId, getAllTasks } from '../../api/tasks';
+import { ReportMessageEntry, Task, createTask, deleteTask, findTasksByThreatId, getAllTasks } from '../../api/Tasks';
 import { Threat, getAllThreats, updateThreatStatus } from '../../api/Threat';
 import { User, getAllUsers } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
@@ -29,8 +30,8 @@ import Footer_A from '../Footer_A';
 // @ts-ignore
 import fonts from '../../styles/Fonts';
 
-
 type TabType = 'unreviewed' | 'assigned' | 'reviewed';
+type TranslationType = ReturnType<typeof getTranslations>;
 
 interface AlertCardProps {
   threat: Threat;
@@ -43,7 +44,7 @@ interface AlertCardProps {
   onReassignPress: (threat: Threat) => void;
 }
 
-const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
+const AlertCard: React.FC<AlertCardProps & { t: TranslationType }> = ({
   threat,
   camera,
   activeTab,
@@ -58,6 +59,8 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  const videoRef = useRef<Video>(null);
+  const isLocalVideoPlaceholder = thumbnailUri === 'foodcity_vedio_placeholder';
 
   // Helper function to extract YouTube video ID from URL
   const getYouTubeVideoId = (url: string): string | null => {
@@ -92,8 +95,14 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
   useEffect(() => {
     if (camera?.camera_view) {
       const isYouTube = camera.camera_view.includes('youtube.com') || camera.camera_view.includes('youtu.be');
+      const isLocalVideo = camera.camera_view === 'foodcity_vedio' || 
+                           (camera.camera_view && camera.camera_view.includes('foodcity_vedio') && !camera.camera_view.includes('http'));
       
-      if (isYouTube) {
+      if (isLocalVideo) {
+        // For local videos, use foodcity video as placeholder/identifier
+        // Set a special identifier that we'll handle in the render
+        setThumbnailUri('foodcity_vedio_placeholder');
+      } else if (isYouTube) {
         const youtubeThumbnail = getYouTubeThumbnail(camera.camera_view);
         if (youtubeThumbnail) {
           setThumbnailUri(youtubeThumbnail);
@@ -104,7 +113,8 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
         setThumbnailUri(camera.camera_view);
       }
     } else {
-      setThumbnailUri(null);
+      // If no camera view, use foodcity video as default placeholder
+      setThumbnailUri('foodcity_vedio_placeholder');
     }
   }, [camera?.camera_view]);
 
@@ -121,7 +131,7 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
         cameraLocation: camera.location || '',
         cameraStatus: camera.camera_status ? 'true' : 'false',
       },
-    } as any);
+    });
   };
 
   const formatDate = (isoDate: string): string => {
@@ -206,12 +216,22 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
         style={styles.thumbnailContainer}
         onPress={handleThumbnailPress}
         activeOpacity={0.8}>
-        {imageLoading && !imageError && thumbnailUri && (
+        {isLocalVideoPlaceholder ? (
+          // Show foodcity video as placeholder/identifier
+          <Video
+            ref={videoRef}
+            source={require('../../assets/images/foodcity_vedio.mp4')}
+            style={styles.thumbnail}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={false}
+            isMuted={true}
+            isLooping={false}
+          />
+        ) : imageLoading && !imageError && thumbnailUri ? (
           <View style={styles.thumbnailLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
-        )}
-        {!imageError && thumbnailUri ? (
+        ) : !imageError && thumbnailUri ? (
           <Image
             source={{ uri: thumbnailUri }}
             style={styles.thumbnail}
@@ -224,9 +244,16 @@ const AlertCard: React.FC<AlertCardProps & { t: any }> = ({
             }}
           />
         ) : (
-          <View style={styles.thumbnailPlaceholder}>
-            <ActivityIndicator size="small" color={colors.primary} />
-          </View>
+          // Fallback: Show foodcity video instead of black screen
+          <Video
+            ref={videoRef}
+            source={require('../../assets/images/foodcity_vedio.mp4')}
+            style={styles.thumbnail}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={false}
+            isMuted={true}
+            isLooping={false}
+          />
         )}
 
         {/* Badges Overlay */}
@@ -359,7 +386,7 @@ interface AssignModalProps {
   onAssign: (threatId: string, userIds: string[]) => void;
 }
 
-const AssignModal: React.FC<AssignModalProps & { t: any }> = ({
+const AssignModal: React.FC<AssignModalProps & { t: TranslationType }> = ({
   visible,
   threat,
   activeEmployees,
@@ -537,20 +564,39 @@ export default function AlertScreen() {
     })).filter((emp) => emp.user !== undefined); // Only include employees that have user data
   }, [employeeActiveStatuses, users]);
 
-  // Filter threats based on active tab
+  // Filter threats based on active tab and today's date
   const filteredThreats = useMemo(() => {
     if (loading || !threats || threats.length === 0) {
       return [];
     }
 
+    // Get today's date in YYYY-MM-DD format for comparison
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayDateString = today.toISOString().split('T')[0];
+
+    // Helper function to check if threat was created today
+    const isTodayThreat = (threat: Threat) => {
+      if (!threat.createdat) return false;
+      const threatDate = new Date(threat.createdat);
+      threatDate.setHours(0, 0, 0, 0);
+      const threatDateString = threatDate.toISOString().split('T')[0];
+      return threatDateString === todayDateString;
+    };
+
     switch (activeTab) {
       case 'unreviewed':
-        // Show threats where threat_status is false (unassigned)
-        return threats.filter((threat) => threat.threat_status === false);
+        // Show threats where threat_status is false (unassigned) AND created today
+        return threats.filter((threat) => 
+          threat.threat_status === false && isTodayThreat(threat)
+        );
       case 'assigned':
-        // Show threats where threat_status is true (assigned) BUT NOT yet reviewed
+        // Show threats where threat_status is true (assigned) BUT NOT yet reviewed AND created today
         // A threat is assigned if threat_status is true AND no task has review_status = true
         return threats.filter((threat) => {
+          if (!isTodayThreat(threat)) {
+            return false; // Not today's threat
+          }
           if (threat.threat_status !== true) {
             return false; // Not assigned
           }
@@ -559,8 +605,11 @@ export default function AlertScreen() {
           return !reviewedTask; // Show only if NOT reviewed
         });
       case 'reviewed':
-        // Show threats that have been reviewed (have tasks with review_status = true)
+        // Show threats that have been reviewed (have tasks with review_status = true) AND created today
         return threats.filter((threat) => {
+          if (!isTodayThreat(threat)) {
+            return false; // Not today's threat
+          }
           const task = tasks.find((task) => task.threat_id === threat._id);
           return task && task.review_status === true;
         });

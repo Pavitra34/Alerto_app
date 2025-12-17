@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ResizeMode, Video } from 'expo-av';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { findCameraById } from '../../api/Camera';
 import { getEmployeeActiveStatus, setEmployeeActiveStatus } from '../../api/employeeActive';
-import { findTasksByUserId, ReportMessageEntry, Task, updateTask } from '../../api/tasks';
+import { findTasksByUserId, ReportMessageEntry, Task, updateTask } from '../../api/Tasks';
 import { findThreatById } from '../../api/Threat';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
@@ -89,6 +90,8 @@ export default function EmployeeScreen() {
   const [t, setT] = useState(getTranslations('en'));
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
   const [thumbnailLoading, setThumbnailLoading] = useState<Record<string, boolean>>({});
+
+  
 
   // Load user data and active status on mount and when screen is focused
   useEffect(() => {
@@ -169,6 +172,17 @@ export default function EmployeeScreen() {
 
     loadUserData();
   }, []); // Run on mount and when component remounts
+
+  // Reload tasks when screen is focused (e.g., when returning from other screens or when task is assigned)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userId && isActive) {
+        // Reload tasks when screen comes into focus
+        console.log('Screen focused - reloading tasks for user:', userId);
+        loadUserTasks(userId);
+      }
+    }, [userId, isActive])
+  );
 
   // Handle login success toast separately
   useEffect(() => {
@@ -261,14 +275,36 @@ export default function EmployeeScreen() {
       
       console.log('Loaded tasks with details:', tasksWithDetails.length);
       
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Filter to show only today's tasks
+      // Check both threat creation date AND task creation date (for newly assigned tasks)
+      // A task should show if:
+      // 1. Threat was created today, OR
+      // 2. Task was created today (newly assigned), OR  
+      // 3. Task is unresponded (review_status = false) - show all unresponded tasks regardless of date
+      const todayTasks = tasksWithDetails.filter(task => {
+        // Show all unresponded tasks (regardless of date) - these are active assignments
+        if (task.reviewStatus === false) {
+          return true;
+        }
+        
+        // For responded tasks, only show today's
+        const threatDate = new Date(task.createdAt).toISOString().split('T')[0];
+        return threatDate === today;
+      });
+      
+      console.log('Today\'s tasks (including unresponded):', todayTasks.length, 'out of', tasksWithDetails.length);
+      
       // Store all assigned tasks (before filtering out responded ones)
-      setAllAssignedTasks(tasksWithDetails);
+      setAllAssignedTasks(todayTasks);
       
       // Check if all tasks have been responded to (using all assigned tasks)
-      await checkAllTasksResponded(currentUserId, tasksWithDetails);
+      await checkAllTasksResponded(currentUserId, todayTasks);
       
       // Filter out tasks that have already been responded to
-      const unrespondedTasks = await filterRespondedTasks(currentUserId, tasksWithDetails);
+      const unrespondedTasks = await filterRespondedTasks(currentUserId, todayTasks);
       setUserTasks(unrespondedTasks);
       console.log('Loaded user tasks (unresponded):', unrespondedTasks.length);
     } catch (error) {
@@ -609,7 +645,7 @@ export default function EmployeeScreen() {
                           cameraLocation: task.cameraLocation || '',
                           cameraStatus: 'true',
                         },
-                      } as any);
+                      });
                     }}
                     activeOpacity={0.8}>
                     {thumbnailLoading[task.taskId] ? (
@@ -623,9 +659,14 @@ export default function EmployeeScreen() {
                         resizeMode="cover"
                       />
                     ) : (
-                      <View style={styles.videoThumbnail}>
-                        <Text style={styles.videoPlaceholder}>viedo thumnail</Text>
-                      </View>
+                      <Video
+                        source={require('../../assets/images/foodcity_vedio.mp4')}
+                        style={styles.videoThumbnail}
+                        resizeMode={ResizeMode.COVER}
+                        shouldPlay={false}
+                        isMuted={true}
+                        isLooping={false}
+                      />
                     )}
                     <View style={styles.playIconContainer}>
                       <Text style={styles.playIcon}>▶</Text>

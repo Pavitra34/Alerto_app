@@ -143,13 +143,13 @@ export default function ProfileScreen() {
       
       // Navigate to employee/home screen with params
       router.replace({
-        pathname: '/employee' as any,
+        pathname: '/employee',
         params: { langId, userId }
-      } as any);
+      });
     } catch (error) {
       console.error('Error navigating to employee screen:', error);
       // Fallback navigation
-      router.replace('/employee' as any);
+      router.replace('/employee');
     }
   };
 
@@ -229,11 +229,10 @@ export default function ProfileScreen() {
       console.log('===================================\n');
       
       // Navigate to login screen with languageId as parameter
-      const navigationParams = {
-        pathname: '/login' as any,
+      router.replace({
+        pathname: '/login',
         params: { langId: langId }
-      };
-      router.replace(navigationParams as any);
+      });
     } catch (error) {
       console.error('❌ Error during logout:', error);
       // Still navigate even if clearing storage fails
