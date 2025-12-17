@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ResizeMode, Video } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -15,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { findCameraById } from '../../api/Camera';
-import { findTasksByUserId, ReportMessageEntry } from '../../api/tasks';
+import { findTasksByUserId, ReportMessageEntry } from '../../api/Tasks';
 import { findThreatById } from '../../api/Threat';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
@@ -152,14 +153,23 @@ export default function HistoryScreen() {
       const historyResults = await Promise.all(historyPromises);
       const validHistory = historyResults.filter((item): item is AlertResponse => item !== null);
       
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date();
+      const todayDateString = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      
+      // Filter to show only today's history
+      const todayHistory = validHistory.filter((item) => {
+        return item.responseDate === todayDateString;
+      });
+      
       // Sort by reviewed time (newest first)
-      validHistory.sort((a, b) => {
+      todayHistory.sort((a, b) => {
         const dateA = new Date(a.responseDate + ' ' + a.responseTime).getTime();
         const dateB = new Date(b.responseDate + ' ' + b.responseTime).getTime();
         return dateB - dateA;
       });
 
-      setAlertHistory(validHistory);
+      setAlertHistory(todayHistory);
     } catch (error) {
       console.error('Error loading reviewed tasks:', error);
       setAlertHistory([]);
@@ -204,20 +214,30 @@ export default function HistoryScreen() {
         if (response.cameraView && !thumbnails[response.id]) {
           setThumbnailLoading((prev) => ({ ...prev, [response.id]: true }));
           try {
-            // Check if it's a YouTube URL
-            const isYouTube = response.cameraView.includes('youtube.com') || response.cameraView.includes('youtu.be');
+            // Check if it's a local video (foodcity_vedio)
+            const isLocalVideo = response.cameraView === 'foodcity_vedio' ||
+                                 (response.cameraView && response.cameraView.trim() === 'foodcity_vedio') ||
+                                 (response.cameraView && response.cameraView.includes('foodcity_vedio') && !response.cameraView.includes('http'));
             
-            if (isYouTube) {
-              // Use YouTube thumbnail
-              const youtubeThumbnail = getYouTubeThumbnail(response.cameraView);
-              if (youtubeThumbnail) {
-                setThumbnails((prev) => ({ ...prev, [response.id]: youtubeThumbnail }));
-              } else {
-                setThumbnails((prev) => ({ ...prev, [response.id]: null }));
-              }
+            if (isLocalVideo) {
+              // For local videos, set thumbnail to null to show video placeholder
+              setThumbnails((prev) => ({ ...prev, [response.id]: null }));
             } else {
-              // For non-YouTube videos, use the URL directly
-              setThumbnails((prev) => ({ ...prev, [response.id]: response.cameraView }));
+              // Check if it's a YouTube URL
+              const isYouTube = response.cameraView.includes('youtube.com') || response.cameraView.includes('youtu.be');
+              
+              if (isYouTube) {
+                // Use YouTube thumbnail
+                const youtubeThumbnail = getYouTubeThumbnail(response.cameraView);
+                if (youtubeThumbnail) {
+                  setThumbnails((prev) => ({ ...prev, [response.id]: youtubeThumbnail }));
+                } else {
+                  setThumbnails((prev) => ({ ...prev, [response.id]: null }));
+                }
+              } else {
+                // For non-YouTube videos, use the URL directly
+                setThumbnails((prev) => ({ ...prev, [response.id]: response.cameraView }));
+              }
             }
           } catch (error) {
             console.error('Error generating thumbnail for history item:', response.id, error);
@@ -225,6 +245,9 @@ export default function HistoryScreen() {
           } finally {
             setThumbnailLoading((prev) => ({ ...prev, [response.id]: false }));
           }
+        } else if (!response.cameraView) {
+          // If no cameraView, set thumbnail to null to show video placeholder
+          setThumbnails((prev) => ({ ...prev, [response.id]: null }));
         }
       }
     };
@@ -243,7 +266,7 @@ export default function HistoryScreen() {
         cameraLocation: response.cameraLocation || '',
         cameraStatus: 'true',
       },
-    } as any);
+    });
   };
 
   useEffect(() => {
@@ -441,7 +464,14 @@ export default function HistoryScreen() {
                     />
                   ) : (
                     <View style={styles.videoThumbnail}>
-                      <Text style={styles.videoPlaceholder}>{t.videoThumbnail}</Text>
+                      <Video
+                        source={require('../../assets/images/foodcity_vedio.mp4')}
+                        style={styles.videoThumbnail}
+                        resizeMode={ResizeMode.COVER}
+                        shouldPlay={false}
+                        isMuted={true}
+                        isLooping={true}
+                      />
                     </View>
                   )}
                   <View style={styles.playIconContainer}>

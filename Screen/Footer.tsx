@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../styles/Colors';
 
 interface FooterProps {
-  onNavigate?: (route: string, params?: any) => void;
+  onNavigate?: (route: string, params?: Record<string, string>) => void;
 }
 
 export default function Footer({ onNavigate }: FooterProps) {
@@ -49,7 +49,7 @@ export default function Footer({ onNavigate }: FooterProps) {
     }
   }, [segments]);
 
-  const handleNavigation = (route: string) => {
+  const handleNavigation = (route: '/employee' | '/history' | '/profile') => {
     const params = {
       langId: langId,
       userId: userId,
@@ -64,9 +64,9 @@ export default function Footer({ onNavigate }: FooterProps) {
     } else {
       // Use replace instead of push to avoid slide animation
       router.replace({
-        pathname: route as any,
+        pathname: route,
         params: params,
-      } as any);
+      });
     }
   };
 

@@ -35,6 +35,11 @@ export default function FullScreenCameraView() {
 
   // Check if the camera view is a YouTube URL
   const isYouTube = cameraView?.includes('youtube.com') || cameraView?.includes('youtu.be');
+  
+  // Check if it's a local video file
+  const isLocalVideo = cameraView === 'foodcity_vedio' || 
+                       (cameraView && cameraView.trim() === 'foodcity_vedio') ||
+                       (cameraView && cameraView.includes('foodcity_vedio') && !cameraView.includes('http'));
 
   // Helper function to extract YouTube video ID from URL
   const getYouTubeVideoId = (url: string): string | null => {
@@ -328,15 +333,27 @@ export default function FullScreenCameraView() {
         activeOpacity={1}
         onPress={toggleControls}
         style={styles.videoContainer}>
-        <Video
-          ref={videoRef}
-          source={{ uri: cameraView }}
-          style={styles.video}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={false}
-          isLooping={false}
-          onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-        />
+        {isLocalVideo ? (
+          <Video
+            ref={videoRef}
+            source={require('../../assets/images/foodcity_vedio.mp4')}
+            style={styles.video}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={false}
+            isLooping={false}
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          />
+        ) : (
+          <Video
+            ref={videoRef}
+            source={{ uri: cameraView }}
+            style={styles.video}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={false}
+            isLooping={false}
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          />
+        )}
         
         {/* Loading Spinner */}
         {isLoading && (
@@ -405,7 +422,7 @@ const styles = StyleSheet.create({
   },
   video: {
     width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.6, // Video takes about 60% of screen height
+    height: SCREEN_HEIGHT, // Full screen height
   },
   loadingContainer: {
     position: 'absolute',

@@ -2,13 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Image,
-  TouchableOpacity,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button1 } from '../components/common/Button';
 
@@ -45,11 +45,11 @@ const LanguageScreen = () => {
       await AsyncStorage.setItem('langId', langId);
       
       // Navigate to LoginScreen
-      router.push('/login' as any);
+      router.push('/login');
     } catch (error) {
       console.error('Error saving language:', error);
       // Still navigate even if saving fails
-      router.push('/login' as any);
+      router.push('/login');
     }
   };
 

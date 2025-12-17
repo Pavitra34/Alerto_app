@@ -149,13 +149,13 @@ export default function ProfileScreen() {
       
       // Navigate to admin/home screen with params
       router.replace({
-        pathname: '/admin' as any,
+        pathname: '/admin',
         params: { langId, userId }
-      } as any);
+      });
     } catch (error) {
       console.error('Error navigating to admin screen:', error);
       // Fallback navigation
-      router.replace('/admin' as any);
+      router.replace('/admin');
     }
   };
 
@@ -236,11 +236,10 @@ export default function ProfileScreen() {
       console.log('===================================\n');
       
       // Navigate to login screen with languageId as parameter
-      const navigationParams = {
-        pathname: '/login' as any,
+      router.replace({
+        pathname: '/login',
         params: { langId: langId }
-      };
-      router.replace(navigationParams as any);
+      });
     } catch (error) {
       console.error('❌ Error during logout:', error);
       // Still navigate even if clearing storage fails

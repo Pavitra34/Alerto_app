@@ -1,13 +1,13 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 
 const FlashScreen = () => {
   const router = useRouter();
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace('/language' as any);
+      router.replace('/language');
     }, 2000); // 2 seconds delay
 
     return () => clearTimeout(timer);

@@ -24,6 +24,7 @@ import Toast, { showErrorToast, showSuccessToast, toastConfig } from '../../../c
 import colors from '../../../styles/Colors';
 // @ts-ignore
 import { registerUser } from '../../../api/auth';
+import { getAllUsers } from '../../../api/users';
 import fonts from '../../../styles/Fonts';
 
 export default function AddUserScreen() {
@@ -93,6 +94,19 @@ export default function AddUserScreen() {
       if (!emailRegex.test(email.trim())) {
         setEmailError('Invalid email format');
         isValid = false;
+      } else {
+        // Check if email already exists
+        try {
+          const allUsers = await getAllUsers();
+          const emailExists = allUsers.some(user => user.email.toLowerCase() === email.trim().toLowerCase());
+          if (emailExists) {
+            setEmailError('Email already exists');
+            isValid = false;
+          }
+        } catch (error) {
+          console.error('Error checking email:', error);
+          // Continue with registration if check fails (backend will validate)
+        }
       }
     }
 
@@ -118,6 +132,19 @@ export default function AddUserScreen() {
       if (!/^[A-Z]/.test(username.trim())) {
         setUsernameError('Username must start with an uppercase letter');
         isValid = false;
+      } else {
+        // Check if username already exists
+        try {
+          const allUsers = await getAllUsers();
+          const usernameExists = allUsers.some(user => user.username.toLowerCase() === username.trim().toLowerCase());
+          if (usernameExists) {
+            setUsernameError('Username already exists');
+            isValid = false;
+          }
+        } catch (error) {
+          console.error('Error checking username:', error);
+          // Continue with registration if check fails (backend will validate)
+        }
       }
     }
 
@@ -286,10 +313,11 @@ export default function AddUserScreen() {
 
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+       >
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.content]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="none">
@@ -415,6 +443,8 @@ export default function AddUserScreen() {
             errorMessage={passwordError}
             secureTextEntry={!showPassword}
             keyboardType="default"
+            autoCapitalize="none"
+            autoCorrect={false}
             rightIcon={showPassword 
               ? require('../../../assets/icons/eye_open.png')
               : require('../../../assets/icons/eye_close.png')
@@ -427,7 +457,7 @@ export default function AddUserScreen() {
               // Scroll to password input when focused to keep it above keyboard
               setTimeout(() => {
                 scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 300);
+              }, 200);
             }}
           />
         </View>
