@@ -20,8 +20,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { findCameraById } from '../../api/Camera';
 import { getEmployeeActiveStatus, setEmployeeActiveStatus } from '../../api/employeeActive';
+import { sendNotificationToUsers } from '../../api/notifications';
 import { findTasksByUserId, ReportMessageEntry, Task, updateTask } from '../../api/Tasks';
 import { findThreatById } from '../../api/Threat';
+import { getUsersByRole } from '../../api/users';
 import { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
@@ -90,6 +92,7 @@ export default function EmployeeScreen() {
   const [t, setT] = useState(getTranslations('en'));
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
   const [thumbnailLoading, setThumbnailLoading] = useState<Record<string, boolean>>({});
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   
 
@@ -171,6 +174,7 @@ export default function EmployeeScreen() {
     setCurrentDate(date.toLocaleDateString('en-US', options));
 
     loadUserData();
+    loadUnreadCount();
   }, []); // Run on mount and when component remounts
 
   // Reload tasks when screen is focused (e.g., when returning from other screens or when task is assigned)
@@ -181,6 +185,8 @@ export default function EmployeeScreen() {
         console.log('Screen focused - reloading tasks for user:', userId);
         loadUserTasks(userId);
       }
+      // Always reload unread count when screen is focused
+      loadUnreadCount();
     }, [userId, isActive])
   );
 
@@ -224,7 +230,17 @@ export default function EmployeeScreen() {
       const tasks = await findTasksByUserId(currentUserId);
       console.log('Found tasks for user:', currentUserId, tasks);
       
-      if (tasks.length === 0) {
+      // Additional filter: Ensure user_id is actually in the task's user_ids array
+      const filteredTasks = tasks.filter((task: Task) => {
+        if (!task.user_ids || !Array.isArray(task.user_ids)) {
+          return false;
+        }
+        return task.user_ids.includes(currentUserId);
+      });
+      
+      console.log('Filtered tasks (user in user_ids array):', filteredTasks.length, 'out of', tasks.length);
+      
+      if (filteredTasks.length === 0) {
         console.log('No tasks found for user:', currentUserId);
         setAllAssignedTasks([]);
         setUserTasks([]);
@@ -233,7 +249,7 @@ export default function EmployeeScreen() {
       }
       
       // For each task, get threat and camera details (async)
-      const tasksWithDetailsPromises = tasks.map(async (task: Task) => {
+      const tasksWithDetailsPromises = filteredTasks.map(async (task: Task) => {
         try {
           const threat = await findThreatById(task.threat_id);
           console.log('Looking for threat:', task.threat_id, 'Found:', threat);
@@ -469,8 +485,62 @@ export default function EmployeeScreen() {
   };
 
   const handleNotificationPress = () => {
-    console.log('Notification pressed');
-    // Add notification navigation logic here
+    router.push('/notifications');
+  };
+
+  // Load unread notification count
+  const loadUnreadCount = async () => {
+    try {
+      const storedNotifications = await AsyncStorage.getItem('notifications');
+      if (!storedNotifications) {
+        setUnreadCount(0);
+        return;
+      }
+      
+      const currentUserId = userId || await AsyncStorage.getItem('userId');
+      if (!currentUserId) {
+        setUnreadCount(0);
+        return;
+      }
+      
+      const parsedNotifications = JSON.parse(storedNotifications);
+      const userObjString = await AsyncStorage.getItem('userObj');
+      let userRole = 'employee';
+      
+      if (userObjString) {
+        const userObj = JSON.parse(userObjString);
+        userRole = userObj.role || 'employee';
+      }
+      
+      // Filter notifications based on user role and assigned users
+      let filteredNotifications = parsedNotifications;
+      if (userRole === 'employee') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => {
+          // First check if it's a task_assigned notification
+          if (notif.data?.type !== 'task_assigned') {
+            return false;
+          }
+          // Then check if current user is in the assigned_user_ids array
+          const assignedUserIds = notif.data?.assigned_user_ids;
+          if (assignedUserIds && Array.isArray(assignedUserIds)) {
+            return assignedUserIds.includes(currentUserId);
+          }
+          // If assigned_user_ids is not available (old notifications), show it for backward compatibility
+          return true;
+        });
+      } else if (userRole === 'admin') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'alert_response'
+        );
+      }
+      
+      // Count unread notifications
+      const unread = filteredNotifications.filter((n: any) => !n.read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+      setUnreadCount(0);
+    }
   };
 
   const getThreatLevelColor = (threatLevel: string): string => {
@@ -506,19 +576,28 @@ export default function EmployeeScreen() {
         />
       )}
       <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
-        <Header
-          center={{
-            type: 'text',
-            value: (showConfirmPopup || showConfirmInactivePopup) ? t.headerTitlePopup : t.headerTitle,
-          }}
-          right={{
-            type: 'image',
-            url: require('../../assets/icons/notification.png'),
-            width: 24,
-            height: 24,
-            onPress: handleNotificationPress,
-          }}
-        />
+        <View style={styles.headerWrapper}>
+          <Header
+            center={{
+              type: 'text',
+              value: (showConfirmPopup || showConfirmInactivePopup) ? t.headerTitlePopup : t.headerTitle,
+            }}
+            right={{
+              type: 'image',
+              url: require('../../assets/icons/notification.png'),
+              width: 24,
+              height: 24,
+              onPress: handleNotificationPress,
+            }}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
 
       <ScrollView 
@@ -985,6 +1064,46 @@ export default function EmployeeScreen() {
                   [reportMessageEntry] // report_message array
                 );
                 console.log('Task updated in database with report message');
+
+                // Send notification to all admin users about the response
+                try {
+                  // Get all admin users
+                  const adminUsers = await getUsersByRole('admin');
+                  
+                  if (adminUsers.length > 0) {
+                    const adminUserIds = adminUsers.map(admin => admin.id);
+                    const employeeName = userName || 'Employee';
+                    const responsePreview = response.fullResponse.length > 50 
+                      ? response.fullResponse.substring(0, 50) + '...' 
+                      : response.fullResponse;
+                    
+                    const notificationTitle = 'Alert Response Received';
+                    const notificationBody = `${employeeName} responded to ${task.threatType} at ${task.cameraName}: ${responsePreview}`;
+
+                    await sendNotificationToUsers(
+                      adminUserIds,
+                      notificationTitle,
+                      notificationBody,
+                      {
+                        type: 'alert_response',
+                        task_id: task.taskId,
+                        threat_id: task.threatId,
+                        threat_type: task.threatType,
+                        camera_name: task.cameraName,
+                        camera_location: task.cameraLocation,
+                        employee_id: userId,
+                        employee_name: employeeName,
+                        response: response.fullResponse,
+                        alert_type: alertType,
+                      }
+                    );
+                    
+                    console.log(`Notification sent to ${adminUserIds.length} admin user(s) about response`);
+                  }
+                } catch (notificationError) {
+                  console.error('Error sending notification to admins:', notificationError);
+                  // Don't fail the response submission if notification fails
+                }
               } catch (error) {
                 console.error('Error updating task in database:', error);
                 // Continue even if database update fails - still save to AsyncStorage
@@ -1530,5 +1649,30 @@ const styles = StyleSheet.create({
     fontFamily: fonts.family.medium,
     fontWeight: fonts.weight.medium,
     color: colors.secondary,
+  },
+  headerWrapper: {
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 18,
+    backgroundColor: colors.primary,
+    borderRadius:15,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    zIndex: 10,
+  },
+  notificationBadgeText: {
+    color: colors.secondary,
+    fontSize: 8,
+    fontWeight: '600',
+    fontFamily: fonts.family.medium,
+    lineHeight: 12,
   },
 });
