@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ResizeMode, Video } from 'expo-av';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, getAllCameras } from '../../api/Camera';
 import { EmployeeActive, getAllEmployeeActiveStatuses } from '../../api/employeeActive';
+import { sendNotificationToUsers } from '../../api/notifications';
 import { ReportMessageEntry, Task, createTask, deleteTask, findTasksByThreatId, getAllTasks } from '../../api/Tasks';
 import { Threat, getAllThreats, updateThreatStatus } from '../../api/Threat';
 import { User, getAllUsers } from '../../api/users';
@@ -486,6 +487,8 @@ const AssignModal: React.FC<AssignModalProps & { t: TranslationType }> = ({
 };
 
 export default function AlertScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>('unreviewed');
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
@@ -497,6 +500,7 @@ export default function AlertScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employeeActiveStatuses, setEmployeeActiveStatuses] = useState<EmployeeActive[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const loadLanguage = async () => {
     try {
@@ -538,6 +542,7 @@ export default function AlertScreen() {
   useEffect(() => {
     loadLanguage();
     loadData();
+    loadUnreadCount();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
     const interval = setInterval(() => {
       loadLanguage();
@@ -546,10 +551,27 @@ export default function AlertScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check for navigation params to switch to reviewed tab
+  useEffect(() => {
+    if (params.tab === 'reviewed' || params.threatId) {
+      // If threatId is present, it's likely from a notification click
+      // Switch to reviewed tab to show the reviewed threat
+      setActiveTab('reviewed');
+    }
+  }, [params.tab, params.threatId]);
+
   // Reload data when refreshKey changes or when returning to screen
   useEffect(() => {
     loadData();
+    loadUnreadCount();
   }, [refreshKey]);
+
+  // Reload unread count when screen is focused (e.g., returning from notification screen)
+  useFocusEffect(
+    useCallback(() => {
+      loadUnreadCount();
+    }, [])
+  );
 
   // Get active employees with user details from database
   // Only show employees with active_status = true
@@ -648,6 +670,43 @@ export default function AlertScreen() {
       const assignedToUserId = userIds.length > 0 ? userIds[0] : null;
       await updateThreatStatus(threatId, true, assignedToUserId);
 
+      // Get threat and camera details for notification
+      const threat = threats.find((t) => t._id === threatId);
+      const camera = cameras.find((cam) => cam._id === threat?.camera_id);
+
+      // Send push notifications to assigned users
+      if (threat && userIds.length > 0) {
+        try {
+          const threatType = threat.threat_type || 'Alert';
+          const cameraName = camera?.name || 'Unknown Camera';
+          const location = camera?.location || 'Unknown Location';
+          
+          const notificationTitle = `New Task Assigned - ${threatType}`;
+          const notificationBody = `${threatType} detected at ${cameraName} - ${location}`;
+
+          await sendNotificationToUsers(
+            userIds,
+            notificationTitle,
+            notificationBody,
+            {
+              type: 'task_assigned',
+              threat_id: threatId,
+              threat_type: threatType,
+              threat_level: threat.threat_level,
+              camera_id: threat.camera_id,
+              camera_name: cameraName,
+              camera_location: location,
+              assigned_user_ids: userIds, // Add assigned user IDs to filter notifications
+            }
+          );
+          
+          console.log(`Notifications sent to ${userIds.length} user(s)`);
+        } catch (notificationError) {
+          console.error('Error sending notifications:', notificationError);
+          // Don't fail the assignment if notification fails
+        }
+      }
+
       // Reload data from API to get updated threat status and tasks
       await loadData();
 
@@ -677,6 +736,45 @@ export default function AlertScreen() {
     // Pre-select will be handled by the modal's useEffect
   };
 
+  // Load unread notification count
+  const loadUnreadCount = async () => {
+    try {
+      const storedNotifications = await AsyncStorage.getItem('notifications');
+      if (!storedNotifications) {
+        setUnreadCount(0);
+        return;
+      }
+      
+      const parsedNotifications = JSON.parse(storedNotifications);
+      const userObjString = await AsyncStorage.getItem('userObj');
+      let userRole = 'admin';
+      
+      if (userObjString) {
+        const userObj = JSON.parse(userObjString);
+        userRole = userObj.role || 'admin';
+      }
+      
+      // Filter notifications based on user role
+      let filteredNotifications = parsedNotifications;
+      if (userRole === 'employee') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'task_assigned'
+        );
+      } else if (userRole === 'admin') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'alert_response'
+        );
+      }
+      
+      // Count unread notifications
+      const unread = filteredNotifications.filter((n: any) => !n.read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+      setUnreadCount(0);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {Platform.OS === 'android' && (
@@ -687,18 +785,28 @@ export default function AlertScreen() {
         />
       )}
       <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
-        <Header
-          center={{
-            type: 'text',
-            value: t.alertAndEvents,
-          }}
-          right={{
-            type: 'image',
-            url: require('../../assets/icons/notification.png'),
-            width: 24,
-            height: 24,
-          }}
-        />
+        <View style={styles.headerWrapper}>
+          <Header
+            center={{
+              type: 'text',
+              value: t.alertAndEvents,
+            }}
+            right={{
+              type: 'image',
+              url: require('../../assets/icons/notification.png'),
+              width: 24,
+              height: 24,
+              onPress: () => router.push('/admin-notifications'),
+            }}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
 
       {/* Tabs */}
@@ -1128,5 +1236,30 @@ const styles = StyleSheet.create({
   },
   modalAssignButtonText: {
     paddingVertical: 8,
+  },
+  headerWrapper: {
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 15,
+    right: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    zIndex: 10,
+  },
+  notificationBadgeText: {
+    color: colors.secondary,
+    fontSize: 10,
+    fontWeight: '600',
+    fontFamily: fonts.family.medium,
+    lineHeight: 12,
   },
 });

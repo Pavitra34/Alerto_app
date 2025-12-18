@@ -32,7 +32,7 @@ interface NotificationItem {
   read: boolean;
 }
 
-export default function NotificationScreen() {
+export default function AdminNotificationScreen() {
   const router = useRouter();
   const [t, setT] = useState(getTranslations('en'));
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -42,7 +42,7 @@ export default function NotificationScreen() {
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const [userId, setUserId] = useState<string>('');
-  const [userRole, setUserRole] = useState<string>('employee');
+  const [userRole, setUserRole] = useState<string>('admin');
 
   // Load language
   const loadLanguage = async () => {
@@ -100,15 +100,6 @@ export default function NotificationScreen() {
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      
-      // Get current user ID
-      const currentUserId = await AsyncStorage.getItem('userId');
-      if (!currentUserId) {
-        console.log('No user ID available for filtering notifications');
-        setNotifications([]);
-        setLoading(false);
-        return;
-      }
 
       // Get stored notifications from AsyncStorage
       const storedNotifications = await AsyncStorage.getItem('notifications');
@@ -125,29 +116,19 @@ export default function NotificationScreen() {
         .sort((a, b) => b.date.getTime() - a.date.getTime());
 
       // Filter notifications based on user role
-      // Staff should only see task_assigned notifications assigned to them
+      // Staff should only see task_assigned notifications
       // Admin should only see alert_response notifications
       if (userRole === 'employee') {
-        allNotifications = allNotifications.filter(notif => {
-          // First check if it's a task_assigned notification
-          if (notif.data?.type !== 'task_assigned') {
-            return false;
-          }
-          // Then check if current user is in the assigned_user_ids array
-          const assignedUserIds = notif.data?.assigned_user_ids;
-          if (assignedUserIds && Array.isArray(assignedUserIds)) {
-            return assignedUserIds.includes(currentUserId);
-          }
-          // If assigned_user_ids is not available (old notifications), show it for backward compatibility
-          return true;
-        });
+        allNotifications = allNotifications.filter(notif =>
+          notif.data?.type === 'task_assigned'
+        );
       } else if (userRole === 'admin') {
         allNotifications = allNotifications.filter(notif =>
           notif.data?.type === 'alert_response'
         );
       }
 
-      console.log(`Loaded ${allNotifications.length} notifications from storage (filtered for ${userRole}, user: ${currentUserId})`);
+      console.log(`Loaded ${allNotifications.length} notifications from storage (filtered for ${userRole})`);
       setNotifications(allNotifications);
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -220,18 +201,27 @@ export default function NotificationScreen() {
       markAsRead(notification.id);
     }
 
-    // Navigate to employee screen for all notifications
-    // If threatId is available, pass it to show the specific task
-    if (notification.data && notification.data.threat_id) {
-      router.push({
-        pathname: '/employee',
-        params: {
-          threatId: notification.data.threat_id,
-        },
-      });
-    } else {
-      // If no threatId, just navigate to employee screen
-      router.push('/employee');
+    // Navigate based on notification data
+    if (notification.data) {
+      if (notification.data.type === 'alert_response' && notification.data.threat_id) {
+        // Navigate to alerts screen with threat_id and switch to reviewed tab
+        router.push({
+          pathname: '/alerts',
+          params: {
+            threatId: notification.data.threat_id,
+            tab: 'reviewed', // Switch to reviewed tab
+          },
+        });
+      } else if (notification.data.type === 'task_assigned' && notification.data.threat_id) {
+        // Navigate to alerts screen for task assignment notifications
+        router.push({
+          pathname: '/alerts',
+          params: {
+            threatId: notification.data.threat_id,
+            tab: 'assigned', // Switch to assigned tab
+          },
+        });
+      }
     }
   };
 
@@ -297,6 +287,29 @@ export default function NotificationScreen() {
     return '';
   };
 
+  // Format notification title for admin
+  const getNotificationTitle = (notification: NotificationItem): string => {
+    // For alert_response notifications, show: "(username) has responded to the alert on cameraname"
+    if (notification.data?.type === 'alert_response') {
+      const employeeName = notification.data.employee_name || 'Employee';
+      const cameraName = notification.data.camera_name || 'Camera';
+      return `${employeeName} has responded to the alert on ${cameraName}`;
+    }
+    // For other notifications, use the original title
+    return notification.title;
+  };
+
+  // Get response message for alert_response notifications
+  const getResponseMessage = (notification: NotificationItem): string => {
+    // For alert_response notifications, show the response message
+    if (notification.data?.type === 'alert_response' && notification.data.response) {
+      return notification.data.response;
+    }
+    // For other notifications, use camera location or body
+    const cameraLocation = getCameraLocation(notification);
+    return cameraLocation || notification.body;
+  };
+
   // Refresh notifications
   const onRefresh = async () => {
     setRefreshing(true);
@@ -316,7 +329,7 @@ export default function NotificationScreen() {
 
     // Listen for notifications received while app is in foreground (additional listener for this screen)
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received in NotificationScreen:', notification.request.content.title);
+      console.log('Notification received in AdminNotificationScreen:', notification.request.content.title);
       const notificationItem: NotificationItem = {
         id: notification.request.identifier || `notif_${Date.now()}_${Math.random()}`,
         title: notification.request.content.title || '',
@@ -331,7 +344,7 @@ export default function NotificationScreen() {
     // Listen for notification taps
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const notification = response.notification;
-      console.log('Notification tapped in NotificationScreen:', notification.request.content.title);
+      console.log('Notification tapped in AdminNotificationScreen:', notification.request.content.title);
       const notificationItem: NotificationItem = {
         id: notification.request.identifier || `notif_${Date.now()}_${Math.random()}`,
         title: notification.request.content.title || '',
@@ -363,7 +376,7 @@ export default function NotificationScreen() {
   // Reload notifications when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('NotificationScreen focused - reloading notifications');
+      console.log('AdminNotificationScreen focused - reloading notifications');
       loadUserRole().then(() => {
         loadNotifications();
       });
@@ -434,8 +447,9 @@ export default function NotificationScreen() {
                   <Text style={styles.sectionTitle}>{section.title}</Text>
                 </View>
                 {section.notifications.map((notification) => {
-                  const cameraLocation = getCameraLocation(notification);
-                  
+                  const notificationTitle = getNotificationTitle(notification);
+                  const responseMessage = getResponseMessage(notification);
+
                   return (
                     <TouchableOpacity
                       key={notification.id}
@@ -453,10 +467,12 @@ export default function NotificationScreen() {
                         paddingLeft={12}
                         marginBottom={12}
                         alignItems="flex-start">
+
+
                         <View style={styles.textContentContainer}>
                           <View style={styles.titleContainer}>
                             <Text style={styles.notificationTitle} numberOfLines={2} ellipsizeMode="tail">
-                              {notification.title}
+                              {notificationTitle}
                             </Text>
                           </View>
                           <View style={styles.attachmentIconContainer}>
@@ -467,15 +483,10 @@ export default function NotificationScreen() {
                             />
                           </View>
                         </View>
-                        {cameraLocation ? (
-                          <Text style={styles.notificationSubtext} numberOfLines={1} ellipsizeMode="tail">
-                            {cameraLocation}
-                          </Text>
-                        ) : (
-                          <Text style={styles.notificationSubtext} numberOfLines={1} ellipsizeMode="tail">
-                            {notification.body}
-                          </Text>
-                        )}
+
+                        <Text style={styles.notificationSubtext} numberOfLines={1} ellipsizeMode="tail">
+                          {responseMessage}
+                        </Text>
                         <View style={styles.notificationTimeRow}>
                           <Image
                             source={require('../../assets/icons/clock_g.png')}
@@ -486,6 +497,8 @@ export default function NotificationScreen() {
                             {formatDate(notification.date)}
                           </Text>
                         </View>
+
+
                       </CartBox>
                     </TouchableOpacity>
                   );
@@ -555,6 +568,7 @@ const styles = StyleSheet.create({
   },
   notificationCardRow: {
     flexDirection: 'row',
+
   },
   textContentContainer: {
     flexDirection: 'row',
@@ -565,7 +579,7 @@ const styles = StyleSheet.create({
   titleContainer: {
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
-    maxWidth: "90%",
+    maxWidth:"90%"
   },
   notificationTitle: {
     fontSize: 14,
@@ -574,18 +588,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
+  subtextContainer: {
+    marginBottom: 10
+
+  },
   notificationSubtext: {
     fontSize: 14,
     fontFamily: fonts.family.regular,
     fontWeight: 400,
     color: colors.subtext,
     lineHeight: 18,
-    marginTop: 5,
+    marginTop:5
   },
   notificationTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+   marginTop:6,
+
   },
   clockIcon: {
     width: 14,
@@ -601,7 +620,8 @@ const styles = StyleSheet.create({
   attachmentIconContainer: {
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
-    flex: 1,
+    flex:1,
+
   },
   attachmentIcon: {
     width: 16,
