@@ -3,17 +3,17 @@ import { ResizeMode, Video } from 'expo-av';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    BackHandler,
+    Image,
+    Modal,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, getAllCameras } from '../../api/Camera';
@@ -60,6 +60,7 @@ const AlertCard: React.FC<AlertCardProps & { t: TranslationType }> = ({
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  const [alertTypes, setAlertTypes] = useState<Map<string, 'true' | 'false'>>(new Map());
   const videoRef = useRef<Video>(null);
   const isLocalVideoPlaceholder = thumbnailUri === 'foodcity_vedio_placeholder';
 
@@ -91,6 +92,43 @@ const AlertCard: React.FC<AlertCardProps & { t: TranslationType }> = ({
     // Use YouTube's thumbnail API
     return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
   };
+
+  // Load alert types from notifications
+  useEffect(() => {
+    const loadAlertTypes = async () => {
+      try {
+        const storedNotifications = await AsyncStorage.getItem('notifications');
+        if (!storedNotifications) return;
+
+        const parsedNotifications = JSON.parse(storedNotifications);
+        const alertTypeMap = new Map<string, 'true' | 'false'>();
+
+        // Filter for alert_response notifications for this threat
+        const alertResponseNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'alert_response' && 
+          notif.data?.threat_id === threat._id &&
+          notif.data?.alert_type
+        );
+
+        // Map user_id to alert_type from notifications
+        alertResponseNotifications.forEach((notif: any) => {
+          const userId = notif.data?.employee_id;
+          const alertType = notif.data?.alert_type;
+          if (userId && alertType) {
+            alertTypeMap.set(userId, alertType);
+          }
+        });
+
+        setAlertTypes(alertTypeMap);
+      } catch (error) {
+        console.error('Error loading alert types:', error);
+      }
+    };
+
+    if (reportMessages && reportMessages.length > 0) {
+      loadAlertTypes();
+    }
+  }, [threat._id, reportMessages]);
 
   // Load thumbnail when camera view changes
   useEffect(() => {
@@ -230,7 +268,7 @@ const AlertCard: React.FC<AlertCardProps & { t: TranslationType }> = ({
           />
         ) : imageLoading && !imageError && thumbnailUri ? (
           <View style={styles.thumbnailLoader}>
-            <ActivityIndicator size="small" color={colors.primary} />
+           {/* <ActivityIndicator size="small" color={colors.primary} /> */}
           </View>
         ) : !imageError && thumbnailUri ? (
           <Image
@@ -284,6 +322,8 @@ const AlertCard: React.FC<AlertCardProps & { t: TranslationType }> = ({
           {reportMessages.map((report, index) => {
             const employee = assignedEmployees?.find((emp) => emp.user?.id === report.user_id);
             const employeeName = employee?.user?.fullname || t.unknown;
+            const alertType = alertTypes.get(report.user_id);
+            const alertTypeText = alertType === 'true' ? t.trueAlert : alertType === 'false' ? t.falseAlert : '';
             return (
               <CartBox
                 key={index}
@@ -302,7 +342,7 @@ const AlertCard: React.FC<AlertCardProps & { t: TranslationType }> = ({
                       {t.assignedStaff} {employeeName}
                     </Text>
                     <Text style={styles.reportMessageText}>
-                      {t.report} {report.message}
+                      {t.report} ({alertTypeText}) {report.message}
                     </Text>
                   </View>
                   <View style={styles.reportCardContent}>
@@ -570,6 +610,15 @@ export default function AlertScreen() {
   useFocusEffect(
     useCallback(() => {
       loadUnreadCount();
+    }, [])
+  );
+
+  // Disable Android hardware back button on this screen
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => backHandler.remove();
     }, [])
   );
 
@@ -863,17 +912,22 @@ export default function AlertScreen() {
           <RefreshControl
             refreshing={loading}
             onRefresh={loadData}
+            colors={[colors.primary]}
             tintColor={colors.primary}
           />
         }>
         {loading ? (
           <View style={styles.emptyContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            {/* <ActivityIndicator size="large" color={colors.primary} /> */}
             <Text style={styles.emptyText}>Loading...</Text>
           </View>
         ) : filteredThreats.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{t.noAlertsFound}</Text>
+            <Image
+              source={require('../../assets/icons/no_alert.png')}
+              style={styles.emptyImage}
+              resizeMode="contain"
+            />
           </View>
         ) : (
           filteredThreats.map((threat) => {
@@ -980,11 +1034,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
+    minHeight: 300,
+    
   },
   emptyText: {
     fontSize: fonts.size.l,
     fontFamily: fonts.family.regular,
     color: colors.subtext,
+  },
+  emptyImage: {
+    width: 200,
+    height: 243,
+   
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1012,13 +1073,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 180,
     position: 'relative',
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     marginBottom: 10,
-    borderRadius:10
+    borderRadius:8
   },
   thumbnail: {
     width: '100%',
     height: '100%',
+    borderRadius:10
   },
   thumbnailLoader: {
     position: 'absolute',
@@ -1028,14 +1090,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   thumbnailPlaceholder: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     borderRadius:10
   },
   badgesContainer: {
@@ -1135,6 +1197,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
     color: colors.secondary,
+  },
+  alertTypeText: {
+    fontSize: fonts.size.m,
+    fontFamily: fonts.family.medium,
+    fontWeight: fonts.weight.medium,
+    color: colors.secondary,
+    marginTop: 4,
+    marginBottom: 4,
   },
   reportMessageText: {
     fontSize: fonts.size.m,

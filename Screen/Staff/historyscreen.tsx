@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ResizeMode, Video } from 'expo-av';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Image,
   Platform,
   RefreshControl,
@@ -56,6 +57,17 @@ export default function HistoryScreen() {
   const [t, setT] = useState(getTranslations('en'));
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
   const [thumbnailLoading, setThumbnailLoading] = useState<Record<string, boolean>>({});
+  const [playingResponseId, setPlayingResponseId] = useState<string | null>(null);
+  const [bufferingResponseId, setBufferingResponseId] = useState<string | null>(null);
+
+  // Disable Android hardware back button on this screen
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => backHandler.remove();
+    }, [])
+  );
 
   // Load reviewed tasks from database
   const loadReviewedTasks = async (currentUserId: string) => {
@@ -269,6 +281,30 @@ export default function HistoryScreen() {
     });
   };
 
+  const isYouTubeUrl = (url?: string) => {
+    if (!url) return false;
+    return url.includes('youtube.com') || url.includes('youtu.be');
+  };
+
+  const isLocalVideo = (cameraView?: string) => {
+    if (!cameraView) return false;
+    return (
+      cameraView === 'foodcity_vedio' ||
+      cameraView.trim() === 'foodcity_vedio' ||
+      (cameraView.includes('foodcity_vedio') && !cameraView.includes('http'))
+    );
+  };
+
+  // Toggle inline play for non-YouTube videos. For YouTube, keep full-screen navigation.
+  const handleInlinePlayPress = (response: AlertResponse) => {
+    if (isYouTubeUrl(response.cameraView)) {
+      handleThumbnailPress(response);
+      return;
+    }
+
+    setPlayingResponseId((prev) => (prev === response.id ? null : response.id));
+  };
+
   useEffect(() => {
     // Get params or load from AsyncStorage
     const loadData = async () => {
@@ -315,6 +351,8 @@ export default function HistoryScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
+      setPlayingResponseId(null);
+      setBufferingResponseId(null);
       await loadHistory();
     } catch (error) {
       console.error('Error refreshing history:', error);
@@ -415,7 +453,7 @@ export default function HistoryScreen() {
                 borderRadius={12}
                 borderWidth={1}
                 borderColor={colors.border}
-                marginBottom={16}
+                marginBottom={12}
                 backgroundColor={colors.secondary}
               >
                 <View style={styles.historyCard}>
@@ -450,9 +488,38 @@ export default function HistoryScreen() {
                 {/* Video Thumbnail */}
                 <TouchableOpacity
                   style={styles.videoContainer}
-                  onPress={() => handleThumbnailPress(response)}
+                  onPress={() => handleInlinePlayPress(response)}
+                  onLongPress={() => handleThumbnailPress(response)}
                   activeOpacity={0.8}>
-                  {thumbnailLoading[response.id] ? (
+                  {playingResponseId === response.id ? (
+                    <>
+                      <Video
+                        source={
+                          isLocalVideo(response.cameraView)
+                            ? require('../../assets/images/foodcity_vedio.mp4')
+                            : { uri: response.cameraView || '' }
+                        }
+                        style={styles.videoThumbnail}
+                        resizeMode={ResizeMode.COVER}
+                        shouldPlay={true}
+                        isMuted={true}
+                        isLooping={false}
+                        onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
+                          if (!status.isLoaded) return;
+                          setBufferingResponseId(status.isBuffering ? response.id : null);
+                          if (status.didJustFinish) {
+                            setPlayingResponseId(null);
+                            setBufferingResponseId(null);
+                          }
+                        }}
+                      />
+                      {bufferingResponseId === response.id && (
+                        <View style={styles.videoLoader}>
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        </View>
+                      )}
+                    </>
+                  ) : thumbnailLoading[response.id] ? (
                     <View style={styles.videoThumbnail}>
                       <ActivityIndicator size="small" color={colors.primary} />
                     </View>
@@ -475,7 +542,9 @@ export default function HistoryScreen() {
                     </View>
                   )}
                   <View style={styles.playIconContainer}>
-                    <Text style={styles.playIcon}>▶</Text>
+                    <Text style={styles.playIcon}>
+                      {playingResponseId === response.id ? '⏸' : '▶'}
+                    </Text>
                   </View>
                   {/* Threat Level Badge */}
                   <View style={[styles.threatLevelBadge, { backgroundColor: getThreatLevelColor(response.threatLevel) }]}>
@@ -581,7 +650,7 @@ const styles = StyleSheet.create({
   locationIcon: {
     width: 14,
     height: 14,
-    marginRight: 6,
+    marginRight: 4,
     tintColor: colors.subtext,
   },
   cameraLocation: {
@@ -601,7 +670,7 @@ const styles = StyleSheet.create({
   clockIcon: {
     width: 14,
     height: 14,
-    marginRight: 6,
+    marginRight: 4,
     tintColor: colors.subtext,
   },
   threatTime: {
@@ -649,6 +718,16 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: colors.primary,
     marginLeft: 3,
+  },
+  videoLoader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
   threatLevelBadge: {
     position: 'absolute',

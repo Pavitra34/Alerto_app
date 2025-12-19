@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#3B82F6',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
@@ -835,7 +835,6 @@ const styles = StyleSheet.create({
   menuIconImage: {
     width: 17,
     height: 17,
-   
     paddingHorizontal: 20,
   },
   menuIconCircle: {
@@ -993,7 +992,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
-    color: colors.text,
+    color: colors.subtext,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,

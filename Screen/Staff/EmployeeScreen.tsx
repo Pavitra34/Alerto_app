@@ -4,6 +4,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Image,
   Modal,
   Platform,
@@ -92,6 +93,7 @@ export default function EmployeeScreen() {
   const [t, setT] = useState(getTranslations('en'));
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
   const [thumbnailLoading, setThumbnailLoading] = useState<Record<string, boolean>>({});
+  const [tasksLoading, setTasksLoading] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   
@@ -190,6 +192,15 @@ export default function EmployeeScreen() {
     }, [userId, isActive])
   );
 
+  // Disable Android hardware back button on this screen
+  useFocusEffect(
+    React.useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => backHandler.remove();
+    }, [])
+  );
+
   // Handle login success toast separately
   useEffect(() => {
     if (params.showLoginSuccess === 'true' && !hasShownLoginToast.current && t) {
@@ -217,6 +228,7 @@ export default function EmployeeScreen() {
   };
 
   const loadUserTasks = async (userIdParam?: string) => {
+    setTasksLoading(true);
     try {
       const currentUserId = userIdParam || userId;
       if (!currentUserId) {
@@ -228,7 +240,7 @@ export default function EmployeeScreen() {
       
       // Get tasks assigned to this user from database
       const tasks = await findTasksByUserId(currentUserId);
-      console.log('Found tasks for user:', currentUserId, tasks);
+      //console.log('Found tasks for user:', currentUserId, tasks);
       
       // Additional filter: Ensure user_id is actually in the task's user_ids array
       const filteredTasks = tasks.filter((task: Task) => {
@@ -238,7 +250,7 @@ export default function EmployeeScreen() {
         return task.user_ids.includes(currentUserId);
       });
       
-      console.log('Filtered tasks (user in user_ids array):', filteredTasks.length, 'out of', tasks.length);
+      //console.log('Filtered tasks (user in user_ids array):', filteredTasks.length, 'out of', tasks.length);
       
       if (filteredTasks.length === 0) {
         console.log('No tasks found for user:', currentUserId);
@@ -252,7 +264,7 @@ export default function EmployeeScreen() {
       const tasksWithDetailsPromises = filteredTasks.map(async (task: Task) => {
         try {
           const threat = await findThreatById(task.threat_id);
-          console.log('Looking for threat:', task.threat_id, 'Found:', threat);
+          //console.log('Looking for threat:', task.threat_id, 'Found:', threat);
           if (!threat) {
             console.warn('Threat not found for task:', task._id, 'threat_id:', task.threat_id);
             return null;
@@ -265,7 +277,7 @@ export default function EmployeeScreen() {
           }
           
           const threatLevel = threat.threat_level || 'N/A';
-          console.log('Threat level for', threat._id, ':', threatLevel);
+          //console.log('Threat level for', threat._id, ':', threatLevel);
           
           return {
             taskId: task._id,
@@ -289,7 +301,7 @@ export default function EmployeeScreen() {
       const tasksWithDetailsResults = await Promise.all(tasksWithDetailsPromises);
       const tasksWithDetails = tasksWithDetailsResults.filter((task): task is TaskWithThreat => task !== null);
       
-      console.log('Loaded tasks with details:', tasksWithDetails.length);
+      //console.log('Loaded tasks with details:', tasksWithDetails.length);
       
       // Get today's date in YYYY-MM-DD format
       const today = new Date().toISOString().split('T')[0];
@@ -322,11 +334,13 @@ export default function EmployeeScreen() {
       // Filter out tasks that have already been responded to
       const unrespondedTasks = await filterRespondedTasks(currentUserId, todayTasks);
       setUserTasks(unrespondedTasks);
-      console.log('Loaded user tasks (unresponded):', unrespondedTasks.length);
+      //console.log('Loaded user tasks (unresponded):', unrespondedTasks.length);
     } catch (error) {
       console.error('Error loading user tasks:', error);
       setAllAssignedTasks([]);
       setUserTasks([]);
+    } finally {
+      setTasksLoading(false);
     }
   };
 
@@ -397,6 +411,7 @@ export default function EmployeeScreen() {
       setAllTasksResponded(false);
     }
   };
+  
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -643,8 +658,28 @@ export default function EmployeeScreen() {
         <View style={styles.tasksSection}>
           <Text style={styles.tasksTitle}>{t.tasks}</Text>
             <Text style={styles.tasksNote}>{t.tasksNote}</Text>
+
+          {/* Loading state while tasks/video are being fetched after Go Active */}
+          {isActive && tasksLoading && (
+            <CartBox
+              width="100%"
+              borderRadius={12}
+             
+              backgroundColor={colors.secondary}
+              marginBottom={16}
+              paddingTop={12}
+              paddingBottom={12}
+              alignItems="center"
+              justifyContent="center"
+            >
+              <View style={styles.tasksLoadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.tasksLoadingText}>Loading...</Text>
+              </View>
+            </CartBox>
+          )}
           
-          {isActive && userTasks.length === 0 && (
+          {isActive && !tasksLoading && userTasks.length === 0 && (
           <CartBox
             width="100%"
             borderRadius={12}
@@ -659,9 +694,9 @@ export default function EmployeeScreen() {
           )}
 
           {/* Display Threat Alerts */}
-          {isActive && userTasks.length > 0 && userTasks.map((task) => {
+          {isActive && !tasksLoading && userTasks.length > 0 && userTasks.map((task) => {
             // Debug: Log threat level
-            console.log('Task threat level:', task.threatLevel, 'for task:', task.taskId);
+            //console.log('Task threat level:', task.threatLevel, 'for task:', task.taskId);
             // Format date to match: "2024-01-15 14:12:45"
             const threatDate = new Date(task.createdAt);
             const year = threatDate.getFullYear();
@@ -1247,6 +1282,17 @@ const styles = StyleSheet.create({
     fontWeight: fonts.weight.regular,
     color: colors.subtext,
     alignSelf: 'center',
+  },
+  tasksLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  tasksLoadingText: {
+    fontSize: 14,
+    fontFamily: fonts.family.regular,
+    fontWeight: fonts.weight.regular,
+    color: colors.subtext,
   },
   popupBox: {
     paddingVertical: 24,

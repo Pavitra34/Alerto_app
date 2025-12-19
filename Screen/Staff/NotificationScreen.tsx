@@ -534,7 +534,8 @@ const styles = StyleSheet.create({
     color: colors.subtext,
   },
   sectionContainer: {
-    marginBottom: 24,
+    // Reduce gap between Today / Yesterday / Older sections
+    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
