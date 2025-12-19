@@ -28,6 +28,20 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     });
   }
 
+  // Expo Go (Android) no longer supports remote push notifications as of SDK 53.
+  // Skip fetching an Expo push token here to avoid runtime warnings/errors.
+  // Local notifications + listeners still work in Expo Go.
+  const isExpoGo =
+    // SDK 49+ (preferred)
+    // @ts-ignore - executionEnvironment exists in newer SDKs
+    Constants?.executionEnvironment === 'storeClient' ||
+    // Fallback for older detection
+    Constants?.appOwnership === 'expo';
+
+  if (isExpoGo && Platform.OS === 'android') {
+    return null;
+  }
+
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;

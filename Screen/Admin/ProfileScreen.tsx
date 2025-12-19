@@ -416,11 +416,10 @@ export default function ProfileScreen() {
           <CartBox
             width="100%"
             backgroundColor={colors.background}
-            borderRadius={12}
+            borderRadius={16}
             borderWidth={0}
             borderColor={colors.border}
-            marginBottom={12}
-            height={159}
+            marginBottom={12}          
             alignItems="flex-start"
             justifyContent="flex-start">
             <Text style={styles.sectionHeadingInBox}>{t.personalInformation}</Text>
@@ -440,7 +439,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.infoRow, styles.emailRow]}
-              onPress={handleEditEmail}
+              //onPress={handleEditEmail}
               activeOpacity={0.7}>
               <Image 
                 source={require('../../assets/icons/email.png')} 
@@ -458,11 +457,11 @@ export default function ProfileScreen() {
           <CartBox
             width="100%"
             backgroundColor={colors.background}
-            borderRadius={12}
+            borderRadius={16}
             borderWidth={0}
             borderColor={colors.border}
             marginBottom={12}
-            height={82}
+           
             alignItems="flex-start"
             justifyContent="flex-start">
             <Text style={styles.sectionHeadingInBox}>{t.preferences}</Text>
@@ -482,11 +481,10 @@ export default function ProfileScreen() {
           <CartBox
             width="100%"
             backgroundColor={colors.background}
-            borderRadius={12}
+            borderRadius={16}
             borderWidth={0}
             borderColor={colors.border}
             marginBottom={12}
-            height={205}
             alignItems="flex-start"
             justifyContent="flex-start">
             <Text style={styles.sectionHeadingInBox}>{t.supportAndLegal}</Text>
@@ -545,16 +543,15 @@ export default function ProfileScreen() {
           <CartBox
             width="100%"
             backgroundColor={colors.background}
-            borderRadius={12}
+            borderRadius={16}
             borderWidth={0}
             borderColor={colors.border}
-            height={43}
             marginBottom={12}
             onPress={handleLogout}>
             <View style={styles.menuRowInBox}>
               <Image 
                 source={require('../../assets/icons/logout.png')} 
-                style={[styles.menuIconImage, styles.logoutIconImage]}
+                style={[styles.menuIconImage]}
                 resizeMode="contain"
               />
               <Text style={[styles.menuText, styles.logoutText]}>{t.logout}</Text>
@@ -889,7 +886,7 @@ const styles = StyleSheet.create({
   menuIconImage: {
     width: 17,
     height: 17,
-    marginRight: 12,
+    marginRight: 8,
   },
   menuIconCircle: {
     width: 24,
@@ -906,9 +903,6 @@ const styles = StyleSheet.create({
     fontWeight: fonts.weight.bold,
     color: colors.secondary,
   },
-  logoutIconImage: {
-    tintColor: '#EF4444',
-  },
   menuText: {
     fontSize: 14,
     fontFamily: fonts.family.medium,
@@ -916,9 +910,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
   },
-  logoutIcon: {
-    color: '#EF4444',
-  },
+ 
   logoutText: {
     color: '#EF4444',
   },
@@ -1046,7 +1038,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.family.regular,
     fontWeight: fonts.weight.regular,
-    color: colors.text,
+    color: colors.subtext,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,

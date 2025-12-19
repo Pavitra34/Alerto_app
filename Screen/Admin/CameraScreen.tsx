@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as VideoThumbnails from 'expo-video-thumbnails';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Dimensions,
   Image,
   Platform,
@@ -319,6 +320,7 @@ export default function CameraScreen() {
   const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
   const [playingCameraId, setPlayingCameraId] = useState<string | null>(null);
   const [t, setT] = useState(getTranslations('en'));
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const loadLanguage = async () => {
     try {
@@ -344,6 +346,45 @@ export default function CameraScreen() {
       return [];
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load unread notification count
+  const loadUnreadCount = async () => {
+    try {
+      const storedNotifications = await AsyncStorage.getItem('notifications');
+      if (!storedNotifications) {
+        setUnreadCount(0);
+        return;
+      }
+      
+      const parsedNotifications = JSON.parse(storedNotifications);
+      const userObjString = await AsyncStorage.getItem('userObj');
+      let userRole = 'admin';
+      
+      if (userObjString) {
+        const userObj = JSON.parse(userObjString);
+        userRole = userObj.role || 'admin';
+      }
+      
+      // Filter notifications based on user role
+      let filteredNotifications = parsedNotifications;
+      if (userRole === 'employee') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'task_assigned'
+        );
+      } else if (userRole === 'admin') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'alert_response'
+        );
+      }
+      
+      // Count unread notifications
+      const unread = filteredNotifications.filter((n: any) => !n.read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+      setUnreadCount(0);
     }
   };
 
@@ -404,6 +445,7 @@ export default function CameraScreen() {
 
   useEffect(() => {
     loadLanguage();
+    loadUnreadCount();
     // Load cameras first, then check and add Food City camera if needed
     loadCameras().then(() => {
       // After loading cameras, check and add Food City camera if needed
@@ -416,6 +458,22 @@ export default function CameraScreen() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Reload unread count when screen is focused (e.g., returning from notification screen)
+  useFocusEffect(
+    useCallback(() => {
+      loadUnreadCount();
+    }, [])
+  );
+
+  // Disable Android hardware back button on this screen
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => backHandler.remove();
+    }, [])
+  );
 
   // Helper function to extract YouTube video ID from URL
   const getYouTubeVideoId = (url: string): string | null => {
@@ -546,18 +604,28 @@ export default function CameraScreen() {
         />
       )}
       <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
-        <Header
-          center={{
-            type: 'text',
-            value: t.camera,
-          }}
-          right={{
-            type: 'image',
-            url: require('../../assets/icons/notification.png'),
-            width: 24,
-            height: 24,
-          }}
-        />
+        <View style={styles.headerWrapper}>
+          <Header
+            center={{
+              type: 'text',
+              value: t.camera,
+            }}
+            right={{
+              type: 'image',
+              url: require('../../assets/icons/notification.png'),
+              width: 24,
+              height: 24,
+              onPress: () => router.push('/admin-notifications'),
+            }}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
       <ScrollView
         contentContainerStyle={styles.content}
@@ -773,6 +841,31 @@ const styles = StyleSheet.create({
     fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     color: colors.subtext,
+  },
+  headerWrapper: {
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 15,
+    right: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    zIndex: 10,
+  },
+  notificationBadgeText: {
+    color: colors.secondary,
+    fontSize: 10,
+    fontWeight: '600',
+    fontFamily: fonts.family.medium,
+    lineHeight: 12,
   },
 });
 

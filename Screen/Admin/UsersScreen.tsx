@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  BackHandler,
   Image,
   Modal,
   Platform,
@@ -18,7 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { getAllEmployeeActiveStatuses } from '../../api/employeeActive';
 import { getUsersByRole, User } from '../../api/users';
 import { getTranslations } from '../../assets/Translation';
-import { Button1 } from '../../components/common/Button';
+import Button3, { Button1 } from '../../components/common/Button';
 import CartBox from '../../components/common/CartBox';
 import Header from '../../components/common/Header';
 import SearchBar from '../../components/common/SearchBar';
@@ -41,6 +42,7 @@ export default function UsersScreen() {
   const [employees, setEmployees] = useState<User[]>([]);
   const [employeeActiveStatuses, setEmployeeActiveStatuses] = useState<Map<string, boolean>>(new Map());
   const [t, setT] = useState(getTranslations('en'));
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const insets = useSafeAreaInsets();
 
   const loadLanguage = async () => {
@@ -82,8 +84,48 @@ export default function UsersScreen() {
     }
   };
 
+  // Load unread notification count
+  const loadUnreadCount = async () => {
+    try {
+      const storedNotifications = await AsyncStorage.getItem('notifications');
+      if (!storedNotifications) {
+        setUnreadCount(0);
+        return;
+      }
+      
+      const parsedNotifications = JSON.parse(storedNotifications);
+      const userObjString = await AsyncStorage.getItem('userObj');
+      let userRole = 'admin';
+      
+      if (userObjString) {
+        const userObj = JSON.parse(userObjString);
+        userRole = userObj.role || 'admin';
+      }
+      
+      // Filter notifications based on user role
+      let filteredNotifications = parsedNotifications;
+      if (userRole === 'employee') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'task_assigned'
+        );
+      } else if (userRole === 'admin') {
+        filteredNotifications = parsedNotifications.filter((notif: any) => 
+          notif.data?.type === 'alert_response'
+        );
+      }
+      
+      // Count unread notifications
+      const unread = filteredNotifications.filter((n: any) => !n.read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+      setUnreadCount(0);
+    }
+  };
+
   useEffect(() => {
     loadLanguage();
+    loadUnreadCount();
     loadEmployees();
     loadEmployeeActiveStatuses();
     // Reload language when screen is focused (e.g., returning from LanguageScreen)
@@ -93,6 +135,22 @@ export default function UsersScreen() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Reload unread count when screen is focused (e.g., returning from notification screen)
+  useFocusEffect(
+    useCallback(() => {
+      loadUnreadCount();
+    }, [])
+  );
+
+  // Disable Android hardware back button on this screen
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => backHandler.remove();
+    }, [])
+  );
 
   // Combine users with their active status from database
   const usersWithStatus: UserWithStatus[] = useMemo(() => {
@@ -218,19 +276,28 @@ export default function UsersScreen() {
         />
       )}
       <SafeAreaView edges={['top']} style={styles.safeAreaTop}>
-        <Header
-          center={{
-            type: 'text',
-            value: t.users,
-          }}
-          right={{
-            type: 'image',
-            url: require('../../assets/icons/notification.png'),
-            width: 24,
-            height: 24,
-            onPress: () => console.log('Notification pressed'),
-          }}
-        />
+        <View style={styles.headerWrapper}>
+          <Header
+            center={{
+              type: 'text',
+              value: t.users,
+            }}
+            right={{
+              type: 'image',
+              url: require('../../assets/icons/notification.png'),
+              width: 24,
+              height: 24,
+              onPress: () => router.push('/admin-notifications'),
+            }}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
 
       <View style={styles.searchBarContainer}>
@@ -402,18 +469,12 @@ export default function UsersScreen() {
       </Modal>
 
       {/* Floating Action Button */}
-      <View style={styles.fab}>
-        <TouchableOpacity
-          onPress={handleAddUser}
-          activeOpacity={0.8}
-          style={styles.fabTouchable}>
-          <Image
-            source={require('../../assets/icons/floting1.png')}
-            style={styles.fabIcon}
-            resizeMode="contain"
-          />
-        </TouchableOpacity>
-      </View>
+      <Button3
+        width={60}
+        height={60}
+        iconSource={require('../../assets/icons/floting.png')}
+        onPress={handleAddUser}
+      />
 
       <SafeAreaView edges={['bottom']} style={styles.footerWrapper}>
         <Footer_A />
@@ -641,5 +702,30 @@ const styles = StyleSheet.create({
     fontSize: fonts.size.m,
     fontFamily: fonts.family.regular,
     color: colors.subtext,
+  },
+  headerWrapper: {
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 15,
+    right: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    zIndex: 10,
+  },
+  notificationBadgeText: {
+    color: colors.secondary,
+    fontSize: 10,
+    fontWeight: '600',
+    fontFamily: fonts.family.medium,
+    lineHeight: 12,
   },
 });
