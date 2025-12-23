@@ -2,14 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    BackHandler,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View,
+  BackHandler,
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAllCameras } from '../../api/Camera';
@@ -69,6 +70,7 @@ export default function AdminScreen() {
     activeStaff: '0/0',
   });
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const hasShownLoginToast = useRef<boolean>(false);
 
   const loadLanguage = async () => {
@@ -158,6 +160,22 @@ export default function AdminScreen() {
       setUnreadCount(0);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await loadLanguage();
+      await Promise.all([
+        loadUnreadCount(),
+        loadEmployees(),
+        loadCameras(),
+        loadEmployeeActiveStatuses(),
+        loadThreats(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadLanguage();
@@ -282,7 +300,17 @@ export default function AdminScreen() {
           )}
         </View>
       </SafeAreaView>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }>
         <MetricCard
           icon={require('../../assets/icons/nvr_b.png')}
           label={t.totalNVROnline}

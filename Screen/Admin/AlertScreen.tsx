@@ -3,17 +3,17 @@ import { ResizeMode, Video } from 'expo-av';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    BackHandler,
-    Image,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  BackHandler,
+  Image,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, getAllCameras } from '../../api/Camera';
@@ -1173,12 +1173,14 @@ const styles = StyleSheet.create({
   },
   assignButton:{  
     width:"100%",
+    height:39,
     borderWidth:2,
     borderColor:colors.primary
   },
   assignButtontext: {
     color: colors.primary,
     paddingVertical: 10,
+    marginTop:-5
   },
   assignedStaffCardName: {
     fontSize: fonts.size.m,

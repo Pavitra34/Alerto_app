@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16,
     paddingHorizontal: 10,
-    marginTop: 12,
+   
     borderRadius: 10,
     height: "auto",
     flexDirection: 'row',

@@ -9,6 +9,7 @@ import {
   Dimensions,
   Image,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -316,6 +317,7 @@ export default function CameraScreen() {
   const router = useRouter();
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
   const [loadingThumbnails, setLoadingThumbnails] = useState<Record<string, boolean>>({});
   const [playingCameraId, setPlayingCameraId] = useState<string | null>(null);
@@ -442,6 +444,32 @@ export default function CameraScreen() {
       // App should continue working even if this fails
     }
   };
+
+  const refreshCameras = async () => {
+    try {
+      const camerasData = await getAllCameras();
+      setCameras(camerasData);
+      return camerasData;
+    } catch (error: unknown) {
+      console.error('Error refreshing cameras:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to refresh cameras';
+      showErrorToast(errorMessage);
+      return [];
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await loadLanguage();
+      await loadUnreadCount();
+      await refreshCameras();
+      // Optional: keep Food City camera auto-add behavior consistent after refresh
+      await addFoodCityCameraIfNeeded();
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadLanguage();
@@ -629,7 +657,15 @@ export default function CameraScreen() {
       </SafeAreaView>
       <ScrollView
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
