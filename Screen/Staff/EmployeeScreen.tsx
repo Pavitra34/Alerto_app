@@ -128,10 +128,8 @@ export default function EmployeeScreen() {
               setTimeout(() => loadUserTasks(storedUserId), 100);
               
               // Also save to AsyncStorage for local state
-              const today = new Date().toISOString().split('T')[0];
               await AsyncStorage.setItem('userActiveStatus', JSON.stringify({
-                isActive: true,
-                date: today
+                isActive: true
               }));
             } else {
               setIsActive(false);
@@ -142,9 +140,9 @@ export default function EmployeeScreen() {
             // Fallback to AsyncStorage if API fails
             const activeStatusData = await AsyncStorage.getItem('userActiveStatus');
             if (activeStatusData) {
-              const { isActive: storedIsActive, date: storedDate } = JSON.parse(activeStatusData);
-              const today = new Date().toISOString().split('T')[0];
-              if (storedDate === today && storedIsActive) {
+              // Backward compatible: older stored object may contain { date }, we ignore it.
+              const { isActive: storedIsActive } = JSON.parse(activeStatusData);
+              if (storedIsActive) {
                 setIsActive(true);
                 if (storedUserId) {
                   setTimeout(() => loadUserTasks(storedUserId), 100);

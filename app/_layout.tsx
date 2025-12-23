@@ -4,12 +4,12 @@ import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
-import { StatusBar as RNStatusBar } from 'react-native';
+import { useEffect } from 'react';
+import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import colors from '@/styles/Colors';
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -70,12 +70,15 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  // NOTE: we force a consistent white background during navigation to prevent
+  // Android's default window background (black) from flashing between screens.
+  const backgroundColor = colors.secondary; // #FFFFFF
   const isDark = colorScheme === 'dark';
 
   useEffect(() => {
     // Configure system UI for Android
     if (Platform.OS === 'android') {
-      SystemUI.setBackgroundColorAsync(isDark ? '#000000' : '#ffffff');
+      SystemUI.setBackgroundColorAsync(backgroundColor);
     }
 
     // Set up global notification listeners
@@ -105,18 +108,29 @@ export default function RootLayout() {
   }, [isDark]);
 
   return (
-    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+    <ThemeProvider
+      value={{
+        ...(isDark ? DarkTheme : DefaultTheme),
+        colors: {
+          ...(isDark ? DarkTheme : DefaultTheme).colors,
+          background: backgroundColor,
+          card: backgroundColor,
+        },
+      }}>
       {/* React Native StatusBar for Android */}
       {Platform.OS === 'android' && (
         <RNStatusBar
-          barStyle={isDark ? 'light-content' : 'dark-content'}
-          backgroundColor={isDark ? '#000000' : '#ffffff'}
+          barStyle="dark-content"
+          backgroundColor={backgroundColor}
           translucent={false}
         />
       )}
       <Stack
         screenOptions={{
           animation: 'none',
+          gestureEnabled: false,
+          // Important: keep an explicit background to avoid black flashes between screens.
+          contentStyle: { backgroundColor },
         }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ headerShown: false }} />

@@ -247,33 +247,59 @@ export default function AdminNotificationScreen() {
     }
   };
 
-  // Group notifications by date
-  const groupNotificationsByDate = (notifications: NotificationItem[]) => {
+  const getDateKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+  const formatSectionTitleForDate = (d: Date): string => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    const groups: { [key: string]: NotificationItem[] } = {
-      Today: [],
-      Yesterday: [],
-      Older: [],
-    };
+    const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-    notifications.forEach((notification) => {
+    if (dateOnly.getTime() === today.getTime()) return 'Today';
+    if (dateOnly.getTime() === yesterday.getTime()) return 'Yesterday';
+
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // Group notifications by date sections: Today, Yesterday, then specific date (instead of "Older")
+  const buildNotificationSections = (items: NotificationItem[]) => {
+    const buckets = new Map<string, { title: string; dateOnly: Date; notifications: NotificationItem[] }>();
+
+    items.forEach((notification) => {
       const notifDate = new Date(notification.date);
-      const notifDateOnly = new Date(notifDate.getFullYear(), notifDate.getMonth(), notifDate.getDate());
+      const dateOnly = new Date(notifDate.getFullYear(), notifDate.getMonth(), notifDate.getDate());
+      const key = getDateKey(dateOnly);
 
-      if (notifDateOnly.getTime() === today.getTime()) {
-        groups.Today.push(notification);
-      } else if (notifDateOnly.getTime() === yesterday.getTime()) {
-        groups.Yesterday.push(notification);
-      } else {
-        groups.Older.push(notification);
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.notifications.push(notification);
+        return;
       }
+
+      buckets.set(key, {
+        title: formatSectionTitleForDate(dateOnly),
+        dateOnly,
+        notifications: [notification],
+      });
     });
 
-    return groups;
+    // Sort sections by dateOnly desc (newest day first)
+    const sections = Array.from(buckets.values()).sort(
+      (a, b) => b.dateOnly.getTime() - a.dateOnly.getTime()
+    );
+
+    // Keep "Today" and "Yesterday" at top (already sorted, but this enforces order)
+    const todaySection = sections.find(s => s.title === 'Today');
+    const yesterdaySection = sections.find(s => s.title === 'Yesterday');
+    const otherSections = sections.filter(s => s.title !== 'Today' && s.title !== 'Yesterday');
+
+    return [
+      ...(todaySection ? [todaySection] : []),
+      ...(yesterdaySection ? [yesterdaySection] : []),
+      ...otherSections,
+    ].filter(s => s.notifications.length > 0);
   };
 
   // Get camera location from notification data
@@ -422,6 +448,7 @@ export default function AdminNotificationScreen() {
               refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }>
           {notifications.length === 0 ? (
@@ -429,15 +456,10 @@ export default function AdminNotificationScreen() {
               <Text style={styles.emptyText}>No notifications</Text>
             </View>
           ) : (() => {
-            const groupedNotifications = groupNotificationsByDate(notifications);
-            const sections = [
-              { title: 'Today', notifications: groupedNotifications.Today },
-              { title: 'Yesterday', notifications: groupedNotifications.Yesterday },
-              { title: 'Older', notifications: groupedNotifications.Older },
-            ].filter(section => section.notifications.length > 0);
+            const sections = buildNotificationSections(notifications);
 
             return sections.map((section) => (
-              <View key={section.title} style={styles.sectionContainer}>
+              <View key={`${section.title}-${getDateKey(section.dateOnly)}`} style={styles.sectionContainer}>
                 <View style={styles.sectionHeader}>
                   <Image
                     source={require('../../assets/icons/calender.png')}

@@ -441,7 +441,7 @@ export default function AddUserScreen() {
               if (passwordError) setPasswordError('');
             }}
             errorMessage={passwordError}
-            secureTextEntry={!showPassword}
+           // secureTextEntry={!showPassword}
             keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
